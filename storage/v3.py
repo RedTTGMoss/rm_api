@@ -346,7 +346,8 @@ def get_documents_using_root(api: 'API', progress, root):
                         deleted_document_collections_list.remove(file.uuid)
                     break
                 elif metadata.type == 'DocumentType':
-                    api.documents[file.uuid] = models.Document(api, models.Content(content, item.hash, api.debug),
+                    api.documents[file.uuid] = models.Document(api,
+                                                               models.Content(content, metadata, item.hash, api.debug),
                                                                metadata, file_content, file.uuid)
                     if not matches_hash:
                         badly_hashed.append(api.documents[file.uuid])

@@ -135,13 +135,23 @@ class Page:
             self.redirect = None
 
     @staticmethod
-    def new_pdf_redirect_dict(redirection_page: int, index: str, uuid: str = None):
+    def new_page_dict(index: str, page_uuid: str = None):
         return {
-            "id": uuid if uuid else make_uuid(),
+            "id": page_uuid if page_uuid else make_uuid(),
             "idx": {
                 "timestamp": "1:2",
                 "value": index
-            },
+            }
+        }
+
+    @classmethod
+    def new_page(cls, index: str, page_uuid: str = None):
+        return cls(cls.new_page_dict(index, page_uuid))
+
+    @classmethod
+    def new_pdf_redirect_dict(cls, redirection_page: int, index: str, page_uuid: str = None):
+        return {
+            **cls.new_page_dict(index, page_uuid),
             "redir": {
                 "timestamp": "1:2",
                 "value": redirection_page
@@ -149,8 +159,8 @@ class Page:
         }
 
     @classmethod
-    def new_pdf_redirect(cls, redirection_page: int, index: str, uuid: str = None):
-        return cls(cls.new_pdf_redirect_dict(redirection_page, index, uuid))
+    def new_pdf_redirect(cls, redirection_page: int, index: str, page_uuid: str = None):
+        return cls(cls.new_pdf_redirect_dict(redirection_page, index, page_uuid))
 
     def to_dict(self):
         result = {
@@ -260,8 +270,9 @@ class Content:
         **CONTENT_TEMPLATE,
     }
 
-    def __init__(self, content: dict, content_hash: str, show_debug: bool = False):
+    def __init__(self, content: dict, metadata: 'Metadata', content_hash: str, show_debug: bool = False):
         self.__content = content
+        self.metadata = metadata
         self.hash = content_hash
         self.usable = True
         self.c_pages = None
@@ -311,7 +322,12 @@ class Content:
         c_page_pages = []
         last_opened_page = None
         for i, (page, redirection_page) in enumerate(zip(pages, redirection_page_map)):
-            c_page_pages.append(Page.new_pdf_redirect_dict(redirection_page, next(index), page))
+            if redirection_page != -1:
+                c_page_pages.append(Page.new_pdf_redirect_dict(redirection_page, next(index), page))
+            else:
+                c_page_pages.append(Page.new_page_dict(next(index), page))
+            if i == self.metadata.last_opened_page:
+                last_opened_page = page
             if i == self.__content.get('lastOpenedPage'):
                 last_opened_page = page
 
@@ -729,6 +745,8 @@ class Document:
         self._replace_uuids(old_uuid, value)
 
     def _replace_uuids(self, old_uuid, value):
+        if self.content.c_pages.last_opened.value == old_uuid:
+            self.content.c_pages.last_opened.value = value
         for file in self.files:
             file.uuid = file.uuid.replace(old_uuid, value)
         for key in list(self.files_available.keys()):
@@ -951,8 +969,8 @@ class Document:
     @classmethod
     def __copy(cls, document: 'Document', shallow: bool = True):
         # Duplicate content and metadata
-        content = Content(document.content.to_dict(), document.file_uuid_map[f'{document.uuid}.content'].hash)
         metadata = Metadata(document.metadata.to_dict(), document.file_uuid_map[f'{document.uuid}.metadata'].hash)
+        content = Content(document.content.to_dict(), metadata, document.file_uuid_map[f'{document.uuid}.content'].hash)
 
         # Make a new document
         if shallow:
