@@ -8,8 +8,8 @@ from hashlib import sha256
 from traceback import print_exc
 from typing import Dict, List, Union
 
-import requests
 import colorama
+import requests
 from requests.adapters import HTTPAdapter
 from urllib3 import Retry
 
@@ -19,8 +19,8 @@ from rm_api.notifications import handle_notifications
 from rm_api.notifications.models import FileSyncProgress, SyncRefresh, DocumentSyncProgress, NewDocuments, APIFatal
 from rm_api.storage.common import get_document_storage_uri, get_document_notifications_uri
 from rm_api.storage.new_sync import get_documents_new_sync, handle_new_api_steps
-from rm_api.storage.old_sync import get_documents_old_sync, update_root, RootUploadFailure
 from rm_api.storage.new_sync import get_root as get_root_new
+from rm_api.storage.old_sync import get_documents_old_sync, update_root, RootUploadFailure
 from rm_api.storage.old_sync import get_root as get_root_old
 from rm_api.storage.v3 import get_documents_using_root, get_file, get_file_contents, make_files_request, put_file, \
     check_file_exists
@@ -29,6 +29,7 @@ colorama.init()
 
 DEFAULT_REMARKABLE_URI = "https://webapp.cloud.remarkable.com/"
 DEFAULT_REMARKABLE_DISCOVERY_URI = "https://service-manager-production-dot-remarkable-production.appspot.com/"
+
 
 class API:
     document_collections: Dict[str, DocumentCollection]
@@ -109,7 +110,6 @@ class API:
             self.uri += "/"
         if not self.discovery_uri.endswith("/"):
             self.discovery_uri += "/"
-
 
     @property
     def use_new_sync(self):

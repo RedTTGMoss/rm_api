@@ -3,11 +3,12 @@ import base64
 import json
 import os
 import ssl
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from hashlib import sha256
 from json import JSONDecodeError
-from traceback import format_exc
-from typing import TYPE_CHECKING, Union, Tuple, List
+from traceback import format_exc, print_exc
+from typing import TYPE_CHECKING, Union, Tuple, List, Set
 
 import aiohttp
 import certifi
@@ -264,6 +265,87 @@ def check_file_exists(api: 'API', file, binary: bool = False, use_cache: bool = 
     return make_files_request(api, "HEAD", file, binary=binary, use_cache=use_cache)
 
 
+def process_file_content(
+        file_content: List['File'],
+        file: 'File',
+        deleted_document_collections_list: Set,
+        deleted_documents_list: Set,
+        document_collections_with_items: Set,
+        badly_hashed: List,
+        api: 'API',
+        matches_hash: bool
+):
+    content = None
+
+    for item in file_content:
+        if item.uuid == f'{file.uuid}.content':
+            try:
+                content = get_file_contents(api, item.hash)
+            except:
+                break
+            if not isinstance(content, dict):
+                break
+        if item.uuid == f'{file.uuid}.metadata':
+            if (old_document_collection := api.document_collections.get(file.uuid)) is not None:
+                if api.document_collections[file.uuid].metadata.hash == item.hash:
+                    if file.uuid in deleted_document_collections_list:
+                        deleted_document_collections_list.remove(file.uuid)
+                    if old_document_collection.uuid not in document_collections_with_items:
+                        old_document_collection.has_items = False
+                    if (parent_document_collection := api.document_collections.get(
+                            old_document_collection.parent)) is not None:
+                        parent_document_collection.has_items = True
+                        document_collections_with_items.add(old_document_collection.parent)
+                    continue
+            elif (old_document := api.documents.get(file.uuid)) is not None:
+                if api.documents[file.uuid].metadata.hash == item.hash:
+                    if file.uuid in deleted_documents_list:
+                        deleted_documents_list.remove(file.uuid)
+                    if (parent_document_collection := api.document_collections.get(
+                            old_document.parent)) is not None:
+                        parent_document_collection.has_items = True
+                    document_collections_with_items.add(old_document.parent)
+                    continue
+            try:
+                metadata = models.Metadata(get_file_contents(api, item.hash), item.hash)
+            except:
+                continue
+            if metadata.type == 'CollectionType':
+                if content is not None:
+                    tags = content.get('tags', ())
+                else:
+                    tags = ()
+                api.document_collections[file.uuid] = models.DocumentCollection(
+                    [models.Tag(tag) for tag in tags],
+                    metadata, file.uuid
+                )
+
+                if file.uuid in document_collections_with_items:
+                    api.document_collections[file.uuid].has_items = True
+
+                if (parent_document_collection := api.document_collections.get(
+                        api.document_collections[file.uuid].parent)) is not None:
+                    parent_document_collection.has_items = True
+                document_collections_with_items.add(api.document_collections[file.uuid].parent)
+
+                if file.uuid in deleted_document_collections_list:
+                    deleted_document_collections_list.remove(file.uuid)
+                break
+            elif metadata.type == 'DocumentType':
+                api.documents[file.uuid] = models.Document(api,
+                                                           models.Content(content, metadata, item.hash, api.debug),
+                                                           metadata, file_content, file.uuid)
+                if not matches_hash:
+                    badly_hashed.append(api.documents[file.uuid])
+                if (parent_document_collection := api.document_collections.get(
+                        api.documents[file.uuid].parent)) is not None:
+                    parent_document_collection.has_items = True
+                document_collections_with_items.add(api.documents[file.uuid].parent)
+                if file.uuid in deleted_documents_list:
+                    deleted_documents_list.remove(file.uuid)
+                break
+
+
 def get_documents_using_root(api: 'API', progress, root):
     try:
         _, files = get_file(api, root)
@@ -278,10 +360,12 @@ def get_documents_using_root(api: 'API', progress, root):
     badly_hashed = []
 
     total = len(files)
+    count = 0
+    progress(0, total)
 
-    for i, file in enumerate(files):
+    def handle_file(file: 'File'):
+        nonlocal count, total
         _, file_content = get_file(api, file.hash)
-        content = None
 
         # Check the hash in case it needs fixing
         document_file_hash = sha256()
@@ -290,77 +374,25 @@ def get_documents_using_root(api: 'API', progress, root):
         expected_hash = document_file_hash.hexdigest()
         matches_hash = file.hash == expected_hash
 
-        file_content.sort(key=get_file_item_order)
-        for item in file_content:
-            if item.uuid == f'{file.uuid}.content':
-                try:
-                    content = get_file_contents(api, item.hash)
-                except:
-                    break
-                if not isinstance(content, dict):
-                    break
-            if item.uuid == f'{file.uuid}.metadata':
-                if (old_document_collection := api.document_collections.get(file.uuid)) is not None:
-                    if api.document_collections[file.uuid].metadata.hash == item.hash:
-                        if file.uuid in deleted_document_collections_list:
-                            deleted_document_collections_list.remove(file.uuid)
-                        if old_document_collection.uuid not in document_collections_with_items:
-                            old_document_collection.has_items = False
-                        if (parent_document_collection := api.document_collections.get(
-                                old_document_collection.parent)) is not None:
-                            parent_document_collection.has_items = True
-                            document_collections_with_items.add(old_document_collection.parent)
-                        continue
-                elif (old_document := api.documents.get(file.uuid)) is not None:
-                    if api.documents[file.uuid].metadata.hash == item.hash:
-                        if file.uuid in deleted_documents_list:
-                            deleted_documents_list.remove(file.uuid)
-                        if (parent_document_collection := api.document_collections.get(
-                                old_document.parent)) is not None:
-                            parent_document_collection.has_items = True
-                        document_collections_with_items.add(old_document.parent)
-                        continue
-                try:
-                    metadata = models.Metadata(get_file_contents(api, item.hash), item.hash)
-                except:
-                    continue
-                if metadata.type == 'CollectionType':
-                    if content is not None:
-                        tags = content.get('tags', ())
-                    else:
-                        tags = ()
-                    api.document_collections[file.uuid] = models.DocumentCollection(
-                        [models.Tag(tag) for tag in tags],
-                        metadata, file.uuid
-                    )
+        process_file_content(file_content, file, deleted_document_collections_list, deleted_documents_list,
+                             document_collections_with_items, badly_hashed, api, matches_hash)
+        count += 1
 
-                    if file.uuid in document_collections_with_items:
-                        api.document_collections[file.uuid].has_items = True
+        progress(count, total)
 
-                    if (parent_document_collection := api.document_collections.get(
-                            api.document_collections[file.uuid].parent)) is not None:
-                        parent_document_collection.has_items = True
-                    document_collections_with_items.add(api.document_collections[file.uuid].parent)
+    def handle_file_and_check_for_errors(file: 'File'):
+        try:
+            handle_file(file)
+        except:
+            print_exc()
 
-                    if file.uuid in deleted_document_collections_list:
-                        deleted_document_collections_list.remove(file.uuid)
-                    break
-                elif metadata.type == 'DocumentType':
-                    api.documents[file.uuid] = models.Document(api,
-                                                               models.Content(content, metadata, item.hash, api.debug),
-                                                               metadata, file_content, file.uuid)
-                    if not matches_hash:
-                        badly_hashed.append(api.documents[file.uuid])
-                    if (parent_document_collection := api.document_collections.get(
-                            api.documents[file.uuid].parent)) is not None:
-                        parent_document_collection.has_items = True
-                    document_collections_with_items.add(api.documents[file.uuid].parent)
-                    if file.uuid in deleted_documents_list:
-                        deleted_documents_list.remove(file.uuid)
-                    break
-        progress(i + 1, total)
-    else:
-        i = 0
+    try:
+        with ThreadPoolExecutor(max_workers=100) as executor:
+            executor.map(handle_file_and_check_for_errors if api.debug else handle_file, files)
+            executor.shutdown(wait=True)
+    except RuntimeError:
+        return
+    i = 0
 
     if badly_hashed:
         print(f"{Fore.YELLOW}Warning, fixing some bad document tree hashes!{Fore.RESET}")
