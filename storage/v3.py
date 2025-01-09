@@ -33,6 +33,9 @@ if TYPE_CHECKING:
 DEFAULT_ENCODING = 'utf-8'
 EXTENSION_ORDER = ['content', 'metadata', 'rm']
 
+if os.name == 'nt':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 
 def get_file_item_order(item: 'File'):
     try:
@@ -237,9 +240,12 @@ async def put_file_async(api: 'API', file: 'File', data: bytes, sync_event: Docu
 def put_file(api: 'API', file: 'File', data: bytes, sync_event: DocumentSyncProgress):
     api.spread_event(sync_event)
     loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    
     try:
+        asyncio.set_event_loop(loop)
         loop.run_until_complete(put_file_async(api, file, data, sync_event))
+    except:
+        print_exc()
     finally:
         loop.close()
 
