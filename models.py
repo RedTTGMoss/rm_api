@@ -389,15 +389,15 @@ class Content:
             "textScale": 1,
             "zoomMode": "bestFit"
         }
-        return cls(content, make_hash(json.dumps(content, indent=4)))
+        return cls(content, None, make_hash(json.dumps(content, indent=4)))
 
     @classmethod
     def new_pdf(cls):
-        return cls(cls.PDF_CONTENT_TEMPLATE, make_hash(json.dumps(cls.PDF_CONTENT_TEMPLATE, indent=4)))
+        return cls(cls.PDF_CONTENT_TEMPLATE, None, make_hash(json.dumps(cls.PDF_CONTENT_TEMPLATE, indent=4)))
 
     @classmethod
     def new_epub(cls):
-        return cls(cls.EPUB_CONTENT_TEMPLATE, make_hash(json.dumps(cls.EPUB_CONTENT_TEMPLATE, indent=4)))
+        return cls(cls.EPUB_CONTENT_TEMPLATE, None, make_hash(json.dumps(cls.EPUB_CONTENT_TEMPLATE, indent=4)))
 
     def to_dict(self) -> dict:
         return {
