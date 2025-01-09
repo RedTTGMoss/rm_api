@@ -278,6 +278,7 @@ class API:
             document.check()
             document.export()
             document.provision = True
+            progress.total += len(document.files)
         self.documents.update({
             document.uuid: document
             for document in documents if isinstance(document, Document)
@@ -289,7 +290,6 @@ class API:
         self.spread_event(NewDocuments())
 
         # Figure out what files have changed
-        progress.total += sum(len(document.files) for document in documents)
         for document in documents:
             for file in document.files:
                 try:
