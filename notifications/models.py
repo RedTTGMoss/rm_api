@@ -52,6 +52,7 @@ class SyncProgressBase(LongLasting):
     def __init__(self):
         self.done = 0
         self.total = 0
+        self.stage = None
 
 
 class FileSyncProgress(SyncProgressBase):

@@ -13,17 +13,18 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3 import Retry
 
-from rm_api.auth import get_token, refresh_token
-from rm_api.models import DocumentCollection, Document, Metadata, Content, make_uuid, File, make_hash
-from rm_api.notifications import handle_notifications
-from rm_api.notifications.models import FileSyncProgress, SyncRefresh, DocumentSyncProgress, NewDocuments, APIFatal
-from rm_api.storage.common import get_document_storage_uri, get_document_notifications_uri
-from rm_api.storage.new_sync import get_documents_new_sync, handle_new_api_steps
-from rm_api.storage.new_sync import get_root as get_root_new
-from rm_api.storage.old_sync import get_documents_old_sync, update_root, RootUploadFailure
-from rm_api.storage.old_sync import get_root as get_root_old
-from rm_api.storage.v3 import get_documents_using_root, get_file, get_file_contents, make_files_request, put_file, \
+from .auth import get_token, refresh_token
+from .models import DocumentCollection, Document, Metadata, Content, make_uuid, File, make_hash
+from .notifications import handle_notifications
+from .notifications.models import FileSyncProgress, SyncRefresh, DocumentSyncProgress, NewDocuments, APIFatal
+from .storage.common import get_document_storage_uri, get_document_notifications_uri
+from .storage.new_sync import get_documents_new_sync, handle_new_api_steps
+from .storage.new_sync import get_root as get_root_new
+from .storage.old_sync import get_documents_old_sync, update_root, RootUploadFailure
+from .storage.old_sync import get_root as get_root_old
+from .storage.v3 import get_documents_using_root, get_file, get_file_contents, make_files_request, put_file, \
     check_file_exists
+from .sync_stages import *
 
 colorama.init()
 
@@ -195,6 +196,7 @@ class API:
         self._upload_lock.acquire()
         upload_event = FileSyncProgress()
         self.spread_event(upload_event)
+        upload_event.stage = STAGE_START
         try:
             # for document in documents:
             #     document.ensure_download()
@@ -219,6 +221,7 @@ class API:
         self._upload_lock.acquire()
         upload_event = FileSyncProgress()
         self.spread_event(upload_event)
+        upload_event.stage = STAGE_START
         try:
             self._delete_document_contents(documents, upload_event)
         except:
@@ -243,6 +246,8 @@ class API:
             return
 
         progress.total += 2  # Getting root / Updating root
+
+        progress.stage = STAGE_GET_ROOT
 
         root = self.get_root()  # root info
 
@@ -274,6 +279,7 @@ class API:
         old_files = []
         files_with_changes = []
 
+        progress.stage = STAGE_EXPORT_DOCUMENTS
         for document in documents:
             document.check()
             document.export()
@@ -290,6 +296,7 @@ class API:
         self.spread_event(NewDocuments())
 
         # Figure out what files have changed
+        progress.stage = STAGE_DIFF_CHECK_DOCUMENTS
         for document in documents:
             for file in document.files:
                 try:
@@ -303,6 +310,8 @@ class API:
                 finally:
                     progress.done += 1
 
+        progress.stage = STAGE_PREPARE_DATA
+
         # Copy the content data so we can add more files to it
         content_datas = {}
         for document in documents:
@@ -315,6 +324,8 @@ class API:
                 file.size = len(data)
 
         # Make a new document file with the updated files for this document
+
+        progress.stage = STAGE_COMPILE_DATA
 
         for document, document_file in zip(documents, document_files):
             document_file_content = ['3\n']
@@ -341,6 +352,7 @@ class API:
             files_with_changes.append(document_file)
 
         # Prepare the root file
+        progress.stage = STAGE_PREPARE_ROOT
         root_file_content = ['3\n']
         root_file_hash = sha256()
         for file in sorted(new_root_files, key=lambda file: file.uuid):
@@ -356,10 +368,13 @@ class API:
 
         # Upload all the files that have changed
         document_operations = {}
+        progress.stage = STAGE_PREPARE_OPERATIONS
 
         for document in documents:
             document_sync_operation = DocumentSyncProgress(document.uuid, progress)
             document_operations[document.uuid] = document_sync_operation
+
+        progress.stage = STAGE_UPLOAD
 
         futures = []
         progress.total += len(files_with_changes)
@@ -386,6 +401,7 @@ class API:
             time.sleep(.1)
 
         # Update the root
+        progress.stage = STAGE_UPDATE_ROOT
         try:
             update_root(self, new_root)
         except RootUploadFailure:
@@ -414,6 +430,8 @@ class API:
 
         progress.total += 2  # Getting root / Updating root
 
+        progress.stage = STAGE_GET_ROOT
+
         root = self.get_root()  # root info
 
         _, files = get_file(self, root['hash'])
@@ -433,6 +451,7 @@ class API:
         ]  # Include all the old data without this data
 
         # Prepare the root file
+        progress.stage = STAGE_PREPARE_ROOT
         root_sync_operation = DocumentSyncProgress('root', progress)
         root_file_content = ['3\n']
         root_file_hash = sha256()
@@ -447,6 +466,7 @@ class API:
         put_file(self, root_file, root_file_content, root_sync_operation)
 
         # Update the root
+        progress.stage = STAGE_UPDATE_ROOT
         try:
             update_root(self, new_root)
         except RootUploadFailure:
