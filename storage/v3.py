@@ -18,6 +18,7 @@ from crc32c import crc32c
 from urllib3 import Retry
 
 import rm_api.models as models
+from rm_api.helpers import batched
 from rm_api.notifications.models import DocumentSyncProgress, FileSyncProgress
 from rm_api.storage.common import FileHandle, ProgressFileAdapter
 from rm_api.storage.exceptions import NewSyncRequired
@@ -240,7 +241,7 @@ async def put_file_async(api: 'API', file: 'File', data: bytes, sync_event: Docu
 def put_file(api: 'API', file: 'File', data: bytes, sync_event: DocumentSyncProgress):
     api.spread_event(sync_event)
     loop = asyncio.new_event_loop()
-    
+
     try:
         asyncio.set_event_loop(loop)
         loop.run_until_complete(put_file_async(api, file, data, sync_event))
@@ -353,6 +354,7 @@ def process_file_content(
 
 
 def get_documents_using_root(api: 'API', progress, root):
+    progress(0, 1)
     try:
         _, files = get_file(api, root)
     except:
@@ -393,9 +395,13 @@ def get_documents_using_root(api: 'API', progress, root):
             print_exc()
 
     try:
-        with ThreadPoolExecutor(max_workers=100) as executor:
-            executor.map(handle_file_and_check_for_errors if api.debug else handle_file, files)
-            executor.shutdown(wait=True)
+        # with ThreadPoolExecutor(max_workers=100) as executor:
+        #     executor.map(handle_file_and_check_for_errors if api.debug else handle_file, files)
+        #     executor.shutdown(wait=True)
+        batch_size = 100
+        with ThreadPoolExecutor() as executor:
+            for batch in batched(files, batch_size):
+                executor.map(handle_file_and_check_for_errors if api.debug else handle_file, batch)
     except RuntimeError:
         return
     i = 0

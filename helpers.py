@@ -1,5 +1,6 @@
 from functools import wraps
 from io import BytesIO
+from itertools import islice
 from threading import Thread
 
 from PyPDF2 import PdfReader
@@ -24,3 +25,9 @@ def threaded(fn):
         return thread
 
     return wrapper
+
+
+def batched(iterable, batch_size):
+    it = iter(iterable)
+    while batch := list(islice(it, batch_size)):
+        yield batch
