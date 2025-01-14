@@ -15,7 +15,11 @@ from rm_api.helpers import get_pdf_page_count
 from rm_api.storage.common import FileHandle
 from rm_api.storage.v3 import get_file_contents
 from rm_api.templates import BLANK_TEMPLATE
-from rm_lines.blocks import write_blocks, blank_document
+
+try:
+    from rm_lines import write_blocks, blank_document
+except ModuleNotFoundError:
+    write_blocks = blank_document = None
 
 if TYPE_CHECKING:
     from rm_api import API
@@ -865,6 +869,8 @@ class Document:
     @classmethod
     def new_notebook(cls, api: 'API', name: str, parent: str = None, document_uuid: str = None, page_count: int = 1,
                      notebook_data: List[Union[bytes, FileHandle]] = []) -> 'Document':
+        if not (write_blocks or blank_document):
+            raise ImportError('rm_lines is not available')
         metadata = Metadata.new(name, parent)
         content = Content.new_notebook(api.author_id, page_count)
 
