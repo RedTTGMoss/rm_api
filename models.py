@@ -722,12 +722,14 @@ class Document:
     files: List[File]
     content_data: Dict[str, bytes]
 
-    def __init__(self, api: 'API', content: Content, metadata: Metadata, files: List[File], uuid: str):
+    def __init__(self, api: 'API', content: Content, metadata: Metadata, files: List[File], uuid: str,
+                 server_hash: str = None):
         self.api = api
         self.content = content
         self.metadata = metadata
         self.files = files
         self._uuid = uuid
+        self.server_hash = server_hash
         self.content_data = {}
         self.files_available = self.check_files_availability()
         self.downloading = False

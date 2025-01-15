@@ -341,7 +341,7 @@ def process_file_content(
             elif metadata.type == 'DocumentType':
                 api.documents[file.uuid] = models.Document(api,
                                                            models.Content(content, metadata, item.hash, api.debug),
-                                                           metadata, file_content, file.uuid)
+                                                           metadata, file_content, file.uuid, file.hash)
                 if not matches_hash:
                     badly_hashed.append(api.documents[file.uuid])
                 if (parent_document_collection := api.document_collections.get(
