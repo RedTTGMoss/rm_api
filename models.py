@@ -39,7 +39,7 @@ def make_uuid():
     return str(uuid.uuid4())
 
 
-def make_hash(data: Union[str, bytes, FileHandle]):
+def make_hash(data: Union[str, bytes, FileHandle, dict]):
     if isinstance(data, FileHandle):
         return data.hash()
     if isinstance(data, str):
@@ -927,11 +927,12 @@ class Document:
 
     @classmethod
     def new_notebook(cls, api: 'API', name: str, parent: str = None, document_uuid: str = None, page_count: int = 1,
-                     notebook_data: List[Union[bytes, FileHandle]] = []) -> 'Document':
+                     notebook_data: List[Union[bytes, FileHandle]] = [], metadata: Metadata = None,
+                     content: Content = None) -> 'Document':
         if not (write_blocks or blank_document):
             raise ImportError('rm_lines is not available')
-        metadata = Metadata.new(name, parent)
-        content = Content.new_notebook(api.author_id, page_count)
+        metadata = Metadata.new(name, parent) if not metadata else metadata
+        content = Content.new_notebook(api.author_id, page_count) if not content else content
 
         blank_notebook_buffer = BytesIO()
         write_blocks(blank_notebook_buffer, blank_document(api.author_id))
