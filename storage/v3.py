@@ -19,6 +19,7 @@ from urllib3 import Retry
 
 import rm_api.models as models
 from rm_api.helpers import batched
+from rm_api.notifications.models import APIFatal
 from rm_api.notifications.models import DocumentSyncProgress, FileSyncProgress
 from rm_api.storage.common import FileHandle, ProgressFileAdapter
 from rm_api.storage.exceptions import NewSyncRequired
@@ -357,7 +358,20 @@ def get_documents_using_root(api: 'API', progress, root):
     progress(0, 1)
     try:
         _, files = get_file(api, root)
-    except:
+        if _ == -1 or len(files) == 0:  # Blank root file / Missing
+            if api.offline_mode and _ == -1:
+                api.spread_event(APIFatal())
+                print(
+                    f"{Fore.RED}{Style.BRIGHT}"
+                    f"API is in offline mode, please sync at least once"
+                    f"{Fore.RESET}{Style.RESET_ALL}"
+                )
+                return
+            _, files = get_file(api, root, False)
+    except AssertionError as e:
+        raise e  # Allow AssertionError passthrough
+    except:  # Any network or read issue
+        print_exc()
         from rm_api.storage.old_sync import update_root
         print(f"{Fore.RED}{Style.BRIGHT}AN ISSUE OCCURRED GETTING YOUR ROOT INDEX!{Fore.RESET}{Style.RESET_ALL}")
 
