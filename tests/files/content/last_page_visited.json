@@ -1,0 +1,235 @@
+{
+    "cPages": {
+        "lastOpened": {
+            "timestamp": "1:8",
+            "value": "0ffd8e7b-a22f-4213-a6f7-78f5c4d21b12"
+        },
+        "original": {
+            "timestamp": "0:0",
+            "value": -1
+        },
+        "pages": [
+            {
+                "id": "f6fdfbf4-5efd-4c39-b1fb-d9da11e08838",
+                "idx": {
+                    "timestamp": "1:2",
+                    "value": "ba"
+                },
+                "template": {
+                    "timestamp": "1:1",
+                    "value": "P Grid medium"
+                }
+            },
+            {
+                "id": "1b9941a5-4689-42e2-be1e-5595d705b1b2",
+                "idx": {
+                    "timestamp": "1:2",
+                    "value": "bb"
+                },
+                "template": {
+                    "timestamp": "1:2",
+                    "value": "P Grid medium"
+                }
+            },
+            {
+                "id": "d4fd9f45-9135-49cf-940b-450315f14979",
+                "idx": {
+                    "timestamp": "1:2",
+                    "value": "bbb"
+                },
+                "template": {
+                    "timestamp": "1:2",
+                    "value": "P Grid medium"
+                }
+            },
+            {
+                "id": "1384d362-616d-4e67-8b7d-6b52a46c8778",
+                "idx": {
+                    "timestamp": "1:2",
+                    "value": "bc"
+                },
+                "template": {
+                    "timestamp": "1:2",
+                    "value": "P Grid medium"
+                }
+            },
+            {
+                "id": "126d5692-9bc1-463e-ba7f-96e686d38bd0",
+                "idx": {
+                    "timestamp": "1:2",
+                    "value": "bcab"
+                },
+                "template": {
+                    "timestamp": "1:2",
+                    "value": "P Grid medium"
+                }
+            },
+            {
+                "id": "d37e9a66-f32e-45cb-9b6e-2bf3508d9ab4",
+                "idx": {
+                    "timestamp": "1:2",
+                    "value": "bcb"
+                },
+                "template": {
+                    "timestamp": "1:2",
+                    "value": "P Grid medium"
+                }
+            },
+            {
+                "id": "005095d9-39f3-4635-9e73-aba49c21239b",
+                "idx": {
+                    "timestamp": "1:2",
+                    "value": "bd"
+                },
+                "template": {
+                    "timestamp": "1:2",
+                    "value": "P Grid medium"
+                }
+            },
+            {
+                "id": "7ba4c163-4cf0-4af1-8185-1ead051624cd",
+                "idx": {
+                    "timestamp": "1:2",
+                    "value": "bdb"
+                },
+                "template": {
+                    "timestamp": "1:2",
+                    "value": "P Grid medium"
+                }
+            },
+            {
+                "id": "0ffd8e7b-a22f-4213-a6f7-78f5c4d21b12",
+                "idx": {
+                    "timestamp": "1:2",
+                    "value": "bdbab"
+                },
+                "template": {
+                    "timestamp": "1:2",
+                    "value": "P Grid medium"
+                }
+            },
+            {
+                "id": "f5b5cefe-1278-4b5f-afb4-2615b9662946",
+                "idx": {
+                    "timestamp": "1:2",
+                    "value": "bdbb"
+                },
+                "template": {
+                    "timestamp": "1:2",
+                    "value": "P Grid medium"
+                }
+            },
+            {
+                "id": "71f24cbe-a97b-4eeb-9875-bcd3090ff087",
+                "idx": {
+                    "timestamp": "1:2",
+                    "value": "bdc"
+                },
+                "template": {
+                    "timestamp": "1:2",
+                    "value": "P Grid medium"
+                }
+            },
+            {
+                "id": "1c08ea2e-9c43-4484-badc-1fe424eb84f3",
+                "idx": {
+                    "timestamp": "1:2",
+                    "value": "be"
+                },
+                "template": {
+                    "timestamp": "1:2",
+                    "value": "P Grid medium"
+                }
+            }
+        ],
+        "uuids": [
+            {
+                "first": "f552a505-51e8-5ffa-915c-ef2a4ef64ec4",
+                "second": 1
+            }
+        ]
+    },
+    "coverPageNumber": -1,
+    "customZoomCenterX": 0,
+    "customZoomCenterY": 936,
+    "customZoomOrientation": "portrait",
+    "customZoomPageHeight": 1872,
+    "customZoomPageWidth": 1404,
+    "customZoomScale": 1,
+    "documentMetadata": {},
+    "dummyDocument": false,
+    "extraMetadata": {
+        "LastBallpointColor": "Black",
+        "LastBallpointSize": "2",
+        "LastBallpointv2Color": "Black",
+        "LastBallpointv2Size": "1.5",
+        "LastCalligraphyColor": "Gray",
+        "LastCalligraphySize": "1",
+        "LastClearPageColor": "Black",
+        "LastClearPageSize": "2",
+        "LastEraseSectionColor": "Black",
+        "LastEraseSectionSize": "2",
+        "LastEraserColor": "Black",
+        "LastEraserSize": "2",
+        "LastEraserTool": "Eraser",
+        "LastFinelinerColor": "Black",
+        "LastFinelinerSize": "2",
+        "LastFinelinerv2Color": "Black",
+        "LastFinelinerv2Size": "1",
+        "LastHighlighterColor": "Black",
+        "LastHighlighterSize": "2",
+        "LastHighlighterv2Color": "HighlighterGreen",
+        "LastHighlighterv2Size": "1",
+        "LastMarkerColor": "Black",
+        "LastMarkerSize": "2",
+        "LastMarkerv2Color": "Black",
+        "LastMarkerv2Size": "2",
+        "LastPaintbrushColor": "Black",
+        "LastPaintbrushSize": "2",
+        "LastPaintbrushv2Color": "Black",
+        "LastPaintbrushv2Size": "0.5",
+        "LastPen": "Calligraphy",
+        "LastPencilColor": "Black",
+        "LastPencilSize": "3",
+        "LastPencilv2Color": "Black",
+        "LastPencilv2Size": "2",
+        "LastReservedPenColor": "Black",
+        "LastReservedPenSize": "2",
+        "LastSelectionToolColor": "Black",
+        "LastSelectionToolSize": "2",
+        "LastSharpPencilColor": "Black",
+        "LastSharpPencilSize": "2",
+        "LastSharpPencilv2Color": "Black",
+        "LastSharpPencilv2Size": "2",
+        "LastSolidPenColor": "Black",
+        "LastSolidPenSize": "2",
+        "LastTool": "Calligraphy",
+        "LastZoomToolColor": "Black",
+        "LastZoomToolSize": "2"
+    },
+    "fileType": "notebook",
+    "fontName": "",
+    "formatVersion": 2,
+    "lastOpenedPage": 0,
+    "lineHeight": -1,
+    "margins": 125,
+    "orientation": "portrait",
+    "pageCount": 12,
+    "pageTags": [],
+    "sizeInBytes": "0",
+    "tags": [],
+    "textAlignment": "justify",
+    "textScale": 1,
+    "transform": {
+        "m11": 1,
+        "m12": 0,
+        "m13": 0,
+        "m21": 0,
+        "m22": 1,
+        "m23": 0,
+        "m31": 0,
+        "m32": 0,
+        "m33": 1
+    },
+    "zoomMode": "bestFit"
+}

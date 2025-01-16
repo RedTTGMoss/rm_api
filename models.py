@@ -4,13 +4,15 @@ import threading
 import time
 import uuid
 from copy import copy, deepcopy
+from datetime import datetime
 from functools import lru_cache
 from hashlib import sha256
 from io import BytesIO
-from typing import List, TYPE_CHECKING, Generic, T, Union, TypedDict, Dict
+from typing import List, TYPE_CHECKING, Generic, T, Union, TypedDict, Dict, Optional
 
 from colorama import Fore
 
+from rm_api.defaults import RM_SCREEN_CENTER, RM_SCREEN_SIZE, ZoomModes
 from rm_api.helpers import get_pdf_page_count
 from rm_api.storage.common import FileHandle
 from rm_api.storage.v3 import get_file_contents
@@ -42,6 +44,8 @@ def make_hash(data: Union[str, bytes, FileHandle]):
         return data.hash()
     if isinstance(data, str):
         return sha256(data.encode()).hexdigest()
+    if isinstance(data, dict):
+        return sha256(json.dumps(data, indent=4).encode()).hexdigest()
     return sha256(data).hexdigest()
 
 
@@ -115,11 +119,26 @@ class TimestampedValue(Generic[T]):
         return cls(dictionary)
 
 
+class TimestampedDate(TimestampedValue[int]):
+    def __init__(self, value: dict):
+        value['value']: T = int(datetime.strptime(value['value'], "%Y-%m-%dT%H:%M:%SZ").timestamp())
+        super().__init__(value)
+
+    def to_dict(self):
+        result = super().to_dict()
+        return {
+            **result,
+            'value': datetime.fromtimestamp(result['value']).strftime("%Y-%m-%dT%H:%M:%SZ")
+        }
+
+
 class Page:
     id: str  # This is technically the UUID, a .rm file may or may not exist for this page
     index: TimestampedValue[str]
     template: TimestampedValue[str]
-    redirect: Union[TimestampedValue[int], None]
+    redirect: Optional[TimestampedValue[int]]
+    scroll_time: Optional[TimestampedDate]
+    vertical_scroll: Optional[TimestampedValue[int]]
 
     def __init__(self, page: dict):
         self.__page = page
@@ -220,6 +239,41 @@ class CPages:
         }
 
 
+class Zoom:
+    ZOOM_TEMPLATE = {
+        "customZoomCenterX": 0,
+        "customZoomCenterY": RM_SCREEN_CENTER[1],
+        "customZoomOrientation": "portrait",
+        "customZoomPageHeight": RM_SCREEN_SIZE[1],
+        "customZoomPageWidth": RM_SCREEN_SIZE[0],
+        "customZoomScale": 1,
+    }
+
+    def __init__(self, content):
+        self.zoom_mode = ZoomModes(content.get('zoomMode', None))
+        if not self.zoom_mode:
+            content = self.ZOOM_TEMPLATE
+            return
+        self.custom_zoom_center_x = content['customZoomCenterX']
+        self.custom_zoom_center_y = content['customZoomCenterY']
+        self.custom_zoom_page_width = content['customZoomPageWidth']
+        self.custom_zoom_page_height = content['customZoomPageHeight']
+        self.custom_zoom_scale = content['customZoomScale']
+
+    def to_dict(self):
+        if not self.zoom_mode:
+            return {}
+        return {
+            'zoomMode': self.zoom_mode.value,
+            "customZoomCenterX": self.custom_zoom_center_x,
+            "customZoomCenterY": self.custom_zoom_center_y,
+            "customZoomOrientation": "portrait",
+            "customZoomPageHeight": self.custom_zoom_page_height,
+            "customZoomPageWidth": self.custom_zoom_page_width,
+            "customZoomScale": self.custom_zoom_scale,
+        }
+
+
 class Content:
     """
     This class only represents the content data
@@ -274,9 +328,9 @@ class Content:
         **CONTENT_TEMPLATE,
     }
 
-    def __init__(self, content: dict, metadata: 'Metadata', content_hash: str, show_debug: bool = False):
-        self.__content = content
-        self.metadata = metadata
+    def __init__(self, content: dict, metadata: Optional['Metadata'], content_hash: str, show_debug: bool = False):
+        self._content = content
+        self._metadata = metadata
         self.hash = content_hash
         self.usable = True
         self.c_pages = None
@@ -287,6 +341,7 @@ class Content:
         self.version: int = content.get('formatVersion')
         self.size_in_bytes: int = int(content.get('sizeInBytes', '-1'))
         self.tags: List[Tag] = [Tag(tag) for tag in content.get('tags', ())]
+        self.zoom = Zoom(content)
 
         # Handle the different versions
         if self.version == 2:
@@ -302,24 +357,24 @@ class Content:
                     print(f'{Fore.YELLOW}Content file version is unknown: {self.version}{Fore.RESET}')
 
     def parse_version_2(self):
-        self.c_pages = CPages(self.__content['cPages'])
+        self.c_pages = CPages(self._content['cPages'])
 
     def parse_version_1(self):
         self.version = 2  # promote to version 2
         # Handle error checking since a lot of these can be empty
         try:
-            original_page_count = self.__content.pop('originalPageCount')
+            original_page_count = self._content.pop('originalPageCount')
         except KeyError:
             original_page_count = 0
         try:
-            pages = self.__content.pop('pages')
+            pages = self._content.pop('pages')
         except KeyError:
             pages = None
         if not pages:
             pages = []
             self.content_file_pdf_check = True
         try:
-            redirection_page_map = self.__content.pop('redirectionPageMap')
+            redirection_page_map = self._content.pop('redirectionPageMap')
         except KeyError:
             redirection_page_map = []
         index = self.page_index_generator()
@@ -330,9 +385,9 @@ class Content:
                 c_page_pages.append(Page.new_pdf_redirect_dict(redirection_page, next(index), page))
             else:
                 c_page_pages.append(Page.new_page_dict(next(index), page))
-            if i == self.metadata.last_opened_page:
+            if i == self._metadata.last_opened_page:
                 last_opened_page = page
-            if i == self.__content.get('lastOpenedPage'):
+            if i == self._content.get('lastOpenedPage'):
                 last_opened_page = page
 
         self.c_pages = CPages(
@@ -406,7 +461,8 @@ class Content:
     def to_dict(self) -> dict:
         return {
             **self.CONTENT_TEMPLATE,
-            **self.__content,
+            **self._content,
+            **self.zoom.to_dict(),
             'fileType': self.file_type,
             'formatVersion': self.version,
             'cPages': self.c_pages.to_dict(),
@@ -492,7 +548,7 @@ class Content:
 
 class Metadata:
     def __init__(self, metadata: dict, metadata_hash: str):
-        self.__metadata = metadata
+        self._metadata = metadata
         self.hash = metadata_hash
         self.type = metadata['type']
         self.parent = metadata['parent'] or None
@@ -510,7 +566,7 @@ class Metadata:
             self.last_opened_page = metadata.get('lastOpenedPage', 0)
 
     @classmethod
-    def new(cls, name: str, parent: str, document_type: str = 'DocumentType'):
+    def new(cls, name: str, parent: Optional[str], document_type: str = 'DocumentType'):
         now = now_time()
         metadata = {
             "deleted": False,
@@ -549,15 +605,15 @@ class Metadata:
         if key == 'last_opened_page':
             key = 'lastOpenedPage'
 
-        if key not in self.__metadata:
+        if key not in self._metadata:
             return
 
-        self.__metadata[key] = value
+        self._metadata[key] = value
 
     def to_dict(self) -> dict:
         return {
-            **self.__metadata,
-            'parent': self.__metadata['parent'] or ''
+            **self._metadata,
+            'parent': self._metadata['parent'] or ''
         }
 
     def modify_now(self):

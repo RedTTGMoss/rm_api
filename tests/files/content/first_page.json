@@ -1,0 +1,222 @@
+{
+  "cPages": {
+    "lastOpened": {
+      "timestamp": "1:12",
+      "value": "f7c32b6b-bdf6-4676-9221-e4c2acba5cf5"
+    },
+    "original": {
+      "timestamp": "0:0",
+      "value": -1
+    },
+    "pages": [
+      {
+        "id": "2ba5cb7b-1042-49ab-86aa-36e9f6f06bca",
+        "idx": {
+          "timestamp": "1:2",
+          "value": "ba"
+        },
+        "template": {
+          "timestamp": "1:1",
+          "value": "P Grid medium"
+        }
+      },
+      {
+        "id": "d32ad068-2a6e-4cd3-9ab8-f1e0542c0638",
+        "idx": {
+          "timestamp": "1:2",
+          "value": "bb"
+        },
+        "template": {
+          "timestamp": "1:2",
+          "value": "P Grid medium"
+        }
+      },
+      {
+        "id": "fea90d92-8ba9-4d04-bc22-b0a1b3041210",
+        "idx": {
+          "timestamp": "1:2",
+          "value": "bbb"
+        },
+        "template": {
+          "timestamp": "1:2",
+          "value": "P Grid medium"
+        }
+      },
+      {
+        "id": "0a887520-4ffb-4e63-9661-d67665bde6c8",
+        "idx": {
+          "timestamp": "1:2",
+          "value": "bc"
+        },
+        "template": {
+          "timestamp": "1:2",
+          "value": "P Grid medium"
+        }
+      },
+      {
+        "id": "bbbe2fce-0287-423a-99d8-f8b05bcbdaef",
+        "idx": {
+          "timestamp": "1:2",
+          "value": "bcb"
+        },
+        "template": {
+          "timestamp": "1:2",
+          "value": "P Grid medium"
+        }
+      },
+      {
+        "id": "55f803af-e76e-4948-90c6-af7184493958",
+        "idx": {
+          "timestamp": "1:2",
+          "value": "bcc"
+        },
+        "template": {
+          "timestamp": "1:2",
+          "value": "P Grid medium"
+        }
+      },
+      {
+        "id": "ba3cd277-65c0-4389-9319-f8b4b236454a",
+        "idx": {
+          "timestamp": "1:2",
+          "value": "bd"
+        },
+        "template": {
+          "timestamp": "1:2",
+          "value": "P Grid medium"
+        }
+      },
+      {
+        "id": "e760975d-0709-417b-b476-ebad38dee499",
+        "idx": {
+          "timestamp": "1:2",
+          "value": "bdb"
+        },
+        "template": {
+          "timestamp": "1:2",
+          "value": "P Grid medium"
+        }
+      },
+      {
+        "id": "763e3c07-3c62-43bc-ab95-0c38d51492e7",
+        "idx": {
+          "timestamp": "1:2",
+          "value": "bdc"
+        },
+        "template": {
+          "timestamp": "1:2",
+          "value": "P Grid medium"
+        }
+      },
+      {
+        "id": "333e498e-58bb-4e39-b234-24753ded55fa",
+        "idx": {
+          "timestamp": "1:2",
+          "value": "be"
+        },
+        "template": {
+          "timestamp": "1:2",
+          "value": "P Grid medium"
+        }
+      },
+      {
+        "id": "f7c32b6b-bdf6-4676-9221-e4c2acba5cf5",
+        "idx": {
+          "timestamp": "1:2",
+          "value": "beb"
+        },
+        "template": {
+          "timestamp": "1:2",
+          "value": "P Grid medium"
+        }
+      },
+      {
+        "id": "0eb4ccbc-0553-4919-a44a-d4ef9e441cfb",
+        "idx": {
+          "timestamp": "1:2",
+          "value": "bf"
+        },
+        "template": {
+          "timestamp": "1:2",
+          "value": "P Grid medium"
+        }
+      }
+    ],
+    "uuids": [
+      {
+        "first": "f552a505-51e8-5ffa-915c-ef2a4ef64ec4",
+        "second": 1
+      }
+    ]
+  },
+  "coverPageNumber": 0,
+  "customZoomCenterX": 0,
+  "customZoomCenterY": 936,
+  "customZoomOrientation": "portrait",
+  "customZoomPageHeight": 1872,
+  "customZoomPageWidth": 1404,
+  "customZoomScale": 1,
+  "documentMetadata": {},
+  "extraMetadata": {
+    "LastBallpointColor": "Black",
+    "LastBallpointSize": "2",
+    "LastBallpointv2Color": "Black",
+    "LastBallpointv2Size": "1.5",
+    "LastCalligraphyColor": "Gray",
+    "LastCalligraphySize": "1",
+    "LastClearPageColor": "Black",
+    "LastClearPageSize": "2",
+    "LastEraseSectionColor": "Black",
+    "LastEraseSectionSize": "2",
+    "LastEraserColor": "Black",
+    "LastEraserSize": "2",
+    "LastEraserTool": "Eraser",
+    "LastFinelinerColor": "Black",
+    "LastFinelinerSize": "2",
+    "LastFinelinerv2Color": "Black",
+    "LastFinelinerv2Size": "1",
+    "LastHighlighterColor": "Black",
+    "LastHighlighterSize": "2",
+    "LastHighlighterv2Color": "HighlighterGreen",
+    "LastHighlighterv2Size": "1",
+    "LastMarkerColor": "Black",
+    "LastMarkerSize": "2",
+    "LastMarkerv2Color": "Black",
+    "LastMarkerv2Size": "2",
+    "LastPaintbrushColor": "Black",
+    "LastPaintbrushSize": "2",
+    "LastPaintbrushv2Color": "Black",
+    "LastPaintbrushv2Size": "0.5",
+    "LastPen": "Calligraphy",
+    "LastPencilColor": "Black",
+    "LastPencilSize": "3",
+    "LastPencilv2Color": "Black",
+    "LastPencilv2Size": "2",
+    "LastReservedPenColor": "Black",
+    "LastReservedPenSize": "2",
+    "LastSelectionToolColor": "Black",
+    "LastSelectionToolSize": "2",
+    "LastSharpPencilColor": "Black",
+    "LastSharpPencilSize": "2",
+    "LastSharpPencilv2Color": "Black",
+    "LastSharpPencilv2Size": "2",
+    "LastSolidPenColor": "Black",
+    "LastSolidPenSize": "2",
+    "LastTool": "Calligraphy",
+    "LastZoomToolColor": "Black",
+    "LastZoomToolSize": "2"
+  },
+  "fileType": "notebook",
+  "fontName": "",
+  "formatVersion": 2,
+  "lineHeight": -1,
+  "margins": 125,
+  "orientation": "portrait",
+  "pageCount": 12,
+  "pageTags": [],
+  "sizeInBytes": "17628",
+  "tags": [],
+  "textAlignment": "justify",
+  "textScale": 1,
+  "zoomMode": "bestFit"
+}
