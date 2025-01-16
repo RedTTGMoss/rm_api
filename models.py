@@ -250,7 +250,8 @@ class Zoom:
     }
 
     def __init__(self, content):
-        self.zoom_mode = ZoomModes(content.get('zoomMode', None))
+        zoom_mode = content.get('zoomMode', None)
+        self.zoom_mode = ZoomModes(zoom_mode) if zoom_mode else None
         if not self.zoom_mode:
             content = self.ZOOM_TEMPLATE
             return
