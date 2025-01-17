@@ -343,6 +343,7 @@ class Content:
         self.size_in_bytes: int = int(content.get('sizeInBytes', '-1'))
         self.tags: List[Tag] = [Tag(tag) for tag in content.get('tags', ())]
         self.zoom = Zoom(content)
+        self.orientation: str = content.get('orientation', 'portrait')
 
         # Handle the different versions
         if self.version == 2:
