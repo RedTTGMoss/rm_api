@@ -12,7 +12,7 @@ from typing import List, TYPE_CHECKING, Generic, T, Union, TypedDict, Dict, Opti
 
 from colorama import Fore
 
-from rm_api.defaults import RM_SCREEN_CENTER, RM_SCREEN_SIZE, ZoomModes
+from rm_api.defaults import RM_SCREEN_CENTER, RM_SCREEN_SIZE, ZoomModes, Orientations
 from rm_api.helpers import get_pdf_page_count
 from rm_api.storage.common import FileHandle
 from rm_api.storage.v3 import get_file_contents
@@ -357,6 +357,14 @@ class Content:
                     print(f'{Fore.RED}Content file version is missing{Fore.RESET}')
                 else:
                     print(f'{Fore.YELLOW}Content file version is unknown: {self.version}{Fore.RESET}')
+
+    @property
+    def is_landscape(self):
+        return self.orientation == Orientations.Landscape.value
+
+    @property
+    def is_portrait(self):
+        return self.orientation == Orientations.Portrait.value
 
     def parse_version_2(self):
         self.c_pages = CPages(self._content['cPages'])
