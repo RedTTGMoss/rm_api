@@ -1,10 +1,9 @@
 import json
 import threading
 from traceback import print_exc
-
-import websocket
 from typing import TYPE_CHECKING
 
+import websocket
 from colorama import Fore
 
 from rm_api.notifications.models import *
@@ -41,7 +40,10 @@ def _listen(api: 'API'):
         ws_url, on_message=lambda _, msg: on_message(api, msg),
         header={"Authorization": f"Bearer {api.token}"}
     )
-    ws.run_forever()
+    ws.run_forever(
+        ping_interval=10,
+        reconnect=5
+    )
 
 
 def handle_notifications(api: 'API'):
