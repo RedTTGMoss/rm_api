@@ -8,6 +8,7 @@ from datetime import datetime
 from functools import lru_cache
 from hashlib import sha256
 from io import BytesIO
+from itertools import zip_longest
 from typing import List, TYPE_CHECKING, Generic, T, Union, TypedDict, Dict, Optional
 
 from colorama import Fore
@@ -390,15 +391,20 @@ class Content:
         index = self.page_index_generator()
         c_page_pages = []
         last_opened_page = None
-        for i, (page, redirection_page) in enumerate(zip(pages, redirection_page_map)):
+        for i, (page, redirection_page) in enumerate(zip_longest(pages, redirection_page_map, fillvalue=-2)):
             if redirection_page != -1:
                 c_page_pages.append(Page.new_pdf_redirect_dict(redirection_page, next(index), page))
+            elif redirection_page != -2:
+                c_page_pages.append(Page.new_pdf_redirect_dict(i, next(index), page))
             else:
                 c_page_pages.append(Page.new_page_dict(next(index), page))
             if i == self._metadata.last_opened_page:
                 last_opened_page = page
             if i == self._content.get('lastOpenedPage'):
                 last_opened_page = page
+
+        if len(c_page_pages) == 0:
+            self.usable = False
 
         self.c_pages = CPages(
             {
@@ -805,6 +811,8 @@ class Document:
                 not self.content.file_type in self.unknown_file_types:
             self.unknown_file_types.add(self.content.file_type)
             print(f'{Fore.RED}Unknown file type: {self.content.file_type}{Fore.RESET}')
+
+        self.check()
 
     @property
     def uuid(self):
