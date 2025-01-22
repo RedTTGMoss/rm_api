@@ -795,7 +795,7 @@ class Document:
     content_data: Dict[str, bytes]
 
     def __init__(self, api: 'API', content: Content, metadata: Metadata, files: List[File], uuid: str,
-                 server_hash: str = None):
+                 server_hash: str = None, check: bool = True):
         self.api = api
         self.content = content
         self.metadata = metadata
@@ -812,7 +812,8 @@ class Document:
             self.unknown_file_types.add(self.content.file_type)
             print(f'{Fore.RED}Unknown file type: {self.content.file_type}{Fore.RESET}')
 
-        self.check()
+        if check:
+            self.check()
 
     @property
     def uuid(self):
@@ -1009,7 +1010,7 @@ class Document:
         document = cls(api, content, metadata, [
             File(content_hashes[key], key, 0, len(content))
             for key, content in content_data.items()
-        ], document_uuid)
+        ], document_uuid, check=False)
 
         document.content_data = content_data
         document.files_available = document.check_files_availability()
