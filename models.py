@@ -252,8 +252,8 @@ class Zoom:
 
     def __init__(self, content):
         zoom_mode = content.get('zoomMode', None)
-        self.zoom_mode = ZoomModes(zoom_mode) if zoom_mode else None
-        if not self.zoom_mode:
+        self._zoom_mode = ZoomModes(zoom_mode) if zoom_mode else None
+        if not self._zoom_mode:
             content = self.ZOOM_TEMPLATE
             return
         self.custom_zoom_center_x = content['customZoomCenterX']
@@ -262,11 +262,15 @@ class Zoom:
         self.custom_zoom_page_height = content['customZoomPageHeight']
         self.custom_zoom_scale = content['customZoomScale']
 
+    @property
+    def zoom_mode(self):
+        return self._zoom_mode or ZoomModes.BestFit
+
     def to_dict(self):
-        if not self.zoom_mode:
+        if not self._zoom_mode:
             return {}
         return {
-            'zoomMode': self.zoom_mode.value,
+            'zoomMode': self._zoom_mode.value,
             "customZoomCenterX": self.custom_zoom_center_x,
             "customZoomCenterY": self.custom_zoom_center_y,
             "customZoomOrientation": "portrait",
