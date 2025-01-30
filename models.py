@@ -119,10 +119,14 @@ class TimestampedValue(Generic[T]):
             return dictionary
         return cls(dictionary)
 
+    @property
+    def __dict__(self):
+        return self.to_dict()
+
 
 class TimestampedDate(TimestampedValue[int]):
     def __init__(self, value: dict):
-        value['value']: T = int(datetime.strptime(value['value'], "%Y-%m-%dT%H:%M:%SZ").timestamp())
+        value['value']: int = int(datetime.strptime(value['value'], "%Y-%m-%dT%H:%M:%SZ").timestamp())
         super().__init__(value)
 
     def to_dict(self):
@@ -157,6 +161,16 @@ class Page:
             self.redirect = TimestampedValue(redirect)
         else:
             self.redirect = None
+
+        if scroll_time := page.get('scrollTime'):
+            self.scroll_time = TimestampedDate(scroll_time)
+        else:
+            self.scroll_time = None
+
+        if vertical_scroll := page.get('verticalScroll'):
+            self.vertical_scroll = TimestampedValue(vertical_scroll)
+        else:
+            self.vertical_scroll = None
 
     @staticmethod
     def new_page_dict(index: str, page_uuid: str = None):
@@ -196,6 +210,21 @@ class Page:
         if self.redirect:
             result['redir'] = self.redirect.to_dict()
 
+        return result
+
+    @property
+    def __dict__(self):
+        result = {
+            'id': self.id,
+            'index': self.index.__dict__,
+            'template': self.template.__dict__,
+        }
+        if self.redirect:
+            result['redirect'] = self.redirect.__dict__
+        if self.scroll_time:
+            result['scroll_time'] = self.scroll_time.__dict__
+        if self.vertical_scroll:
+            result['vertical_scroll'] = self.vertical_scroll.__dict__
         return result
 
 
@@ -239,6 +268,15 @@ class CPages:
             'uuids': self.uuids
         }
 
+    @property
+    def __dict__(self):
+        return {
+            'pages': [page.__dict__ for page in self.pages],
+            'original': self.original.__dict__,
+            'last_opened': self.last_opened.__dict__,
+            'uuids': self.uuids,
+        }
+
 
 class Zoom:
     ZOOM_TEMPLATE = {
@@ -278,6 +316,10 @@ class Zoom:
             "customZoomPageWidth": self.custom_zoom_page_width,
             "customZoomScale": self.custom_zoom_scale,
         }
+
+    @property
+    def __dict__(self):
+        return self.to_dict()
 
 
 class Content:
@@ -339,7 +381,7 @@ class Content:
         self._metadata = metadata
         self.hash = content_hash
         self.usable = True
-        self.c_pages = None
+        self.c_pages: CPages = None
         self.content_file_pdf_check = False
         self.cover_page_number: int = content.get('coverPageNumber', 0)
         self.dummy_document: bool = content.get('dummyDocument', False)
@@ -491,6 +533,22 @@ class Content:
             'coverPageNumber': self.cover_page_number,
         }
 
+    @property
+    def __dict__(self):
+        return {
+            'hash': self.hash,
+            'c_pages': self.c_pages.__dict__,
+            'cover_page_number': self.cover_page_number,
+            'file_type': self.file_type,
+            'version': self.version,
+            'usable': self.usable,
+            'zoom': self.zoom.__dict__,
+            'orientation': self.orientation,
+            'tags': self.tags,
+            'size_in_bytes': self.size_in_bytes,
+            'dummy_document': self.dummy_document,
+        }
+
     def __str__(self):
         return f'content version: {self.version} file type: {self.file_type}'
 
@@ -634,6 +692,28 @@ class Metadata:
         return {
             **self._metadata,
             'parent': self._metadata['parent'] or ''
+        }
+
+    @property
+    def __dict__(self):
+        return {
+            "created_time": self.created_time,
+            "hash": self.hash,
+            "last_modified": self.last_modified,
+            "metadata_modified": self.metadata_modified,
+            "modified": self.modified,
+            "parent": self.parent,
+            "pinned": self.pinned,
+            "synced": self.synced,
+            "type": self.type,
+            "version": self.version,
+            "visible_name": self.visible_name,
+            **(
+                {
+                    "last_opened": self.last_opened,
+                    "last_opened_page": self.last_opened_page
+                } if self.type == 'DocumentType' else {}
+            )
         }
 
     def modify_now(self):
@@ -807,7 +887,7 @@ class Document:
         self._uuid = uuid
         self.server_hash = server_hash
         self.content_data = {}
-        self.files_available = self.check_files_availability()
+        self.files_available: Dict[str, File] = self.check_files_availability()
         self.downloading = False
         self.provision = False  # Used during sync to disable opening or exporting the file!!!
 
@@ -915,7 +995,7 @@ class Document:
         else:
             self._load_files()
 
-    def check_files_availability(self):
+    def check_files_availability(self) -> Dict[str, File]:
         if not self.api.sync_file_path:
             return {}
         available = {}
@@ -1082,6 +1162,21 @@ class Document:
 
     def __deepcopy__(self, memo=None):
         return self.__copy(self, shallow=False)
+
+    @property
+    def __dict__(self):
+        return {
+            'uuid': self.uuid,
+            'server_hash': self.server_hash,
+            'content': self.content.__dict__,
+            'metadata': self.metadata.__dict__,
+            'content_data': self.content_data,
+            'files_available': list(self.files_available.keys()),
+            'files': [file.__dict__ for file in self.files],
+            'downloading': self.downloading,
+            'provision': self.provision,
+            'available': self.available,
+        }
 
     def replace_pdf(self, pdf_data: bytes):
         pdf_uuid = f'{self.uuid}.pdf'
