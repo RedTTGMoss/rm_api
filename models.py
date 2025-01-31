@@ -544,7 +544,7 @@ class Content:
             'usable': self.usable,
             'zoom': self.zoom.__dict__,
             'orientation': self.orientation,
-            'tags': self.tags,
+            'tags': [tag.__dict__ for tag in self.tags],
             'size_in_bytes': self.size_in_bytes,
             'dummy_document': self.dummy_document,
         }
