@@ -847,6 +847,15 @@ class DocumentCollection:
     def __deepcopy__(self, memo=None):
         return self.__copy(self, shallow=False)
 
+    @property
+    def __dict__(self):
+        return {
+            'uuid': self.uuid,
+            'metadata': self.metadata.__dict__,
+            'tags': [tag.__dict__ for tag in self.tags],
+            'has_items': self.has_items
+        }
+
     def duplicate(self, api: 'API'):
         my_items: List[Union[Document, DocumentCollection]] = []
         my_copy = deepcopy(self)
