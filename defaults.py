@@ -20,3 +20,8 @@ class FileTypes(Enum):
 class Orientations(Enum):
     Portrait = 'portrait'
     Landscape = 'landscape'
+
+
+class DocumentTypes(Enum):
+    Document = 'DocumentType'
+    Collection = 'CollectionType'

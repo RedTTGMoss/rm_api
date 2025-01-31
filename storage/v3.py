@@ -18,6 +18,7 @@ from crc32c import crc32c
 from urllib3 import Retry
 
 import rm_api.models as models
+from rm_api.defaults import DocumentTypes
 from rm_api.helpers import batched
 from rm_api.notifications.models import APIFatal
 from rm_api.notifications.models import DocumentSyncProgress, FileSyncProgress
@@ -318,7 +319,7 @@ def process_file_content(
                 metadata = models.Metadata(get_file_contents(api, item.hash), item.hash)
             except:
                 continue
-            if metadata.type == 'CollectionType':
+            if metadata.type == DocumentTypes.Collection.value:
                 if content is not None:
                     tags = content.get('tags', ())
                 else:

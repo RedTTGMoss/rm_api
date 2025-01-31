@@ -13,7 +13,7 @@ from typing import List, TYPE_CHECKING, Generic, T, Union, TypedDict, Dict, Opti
 
 from colorama import Fore
 
-from rm_api.defaults import RM_SCREEN_CENTER, RM_SCREEN_SIZE, ZoomModes, Orientations
+from rm_api.defaults import RM_SCREEN_CENTER, RM_SCREEN_SIZE, ZoomModes, Orientations, DocumentTypes
 from rm_api.helpers import get_pdf_page_count
 from rm_api.storage.common import FileHandle
 from rm_api.storage.v3 import get_file_contents
@@ -644,7 +644,7 @@ class Metadata:
             self.last_opened_page = metadata.get('lastOpenedPage', 0)
 
     @classmethod
-    def new(cls, name: str, parent: Optional[str], document_type: str = 'DocumentType'):
+    def new(cls, name: str, parent: Optional[str], document_type: str = DocumentTypes.Document.value):
         now = now_time()
         metadata = {
             "deleted": False,
@@ -786,7 +786,7 @@ class DocumentCollection:
     def create(cls, api: 'API', name: str, parent: str = None, document_uuid: str = None):
         if not document_uuid:
             document_uuid = make_uuid()
-        return cls([], Metadata.new(name, parent, 'CollectionType'), document_uuid)
+        return cls([], Metadata.new(name, parent, DocumentTypes.Collection.value), document_uuid)
 
     def ensure_download(self):
         pass
