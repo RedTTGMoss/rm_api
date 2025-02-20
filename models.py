@@ -9,12 +9,13 @@ from functools import lru_cache
 from hashlib import sha256
 from io import BytesIO
 from itertools import zip_longest
-from typing import List, TYPE_CHECKING, Generic, T, Union, TypedDict, Dict, Optional
+from typing import List, TYPE_CHECKING, Generic, T, Union, TypedDict, Dict, Optional, Tuple, Any
 
 from colorama import Fore
 
 from rm_api.defaults import RM_SCREEN_CENTER, RM_SCREEN_SIZE, ZoomModes, Orientations, DocumentTypes
 from rm_api.helpers import get_pdf_page_count
+from rm_api.notifications.models import APIFatal
 from rm_api.storage.common import FileHandle
 from rm_api.storage.v3 import get_file_contents
 from rm_api.templates import BLANK_TEMPLATE
@@ -70,6 +71,18 @@ class File:
         self.rm_filename = rm_filename or file_uuid
 
     @classmethod
+    def create_root_file(cls, files: List['File']) -> Tuple[bytes, 'File']:
+        root_file_content = ['3\n']
+        root_file_hash = sha256()
+        for file in sorted(files, key=lambda _: _.uuid):
+            root_file_content.append(file.to_root_line())
+            root_file_hash.update(bytes.fromhex(file.hash))
+
+        root_file_content = ''.join(root_file_content).encode()
+        root_file = File(root_file_hash.hexdigest(), f"root.docSchema", len(files), len(root_file_content))
+        return root_file_content, root_file
+
+    @classmethod
     def from_line(cls, line):
         file_hash, _, file_uuid, content_count, file_size = line.split(':')
         return cls(file_hash, file_uuid, content_count, file_size)
@@ -79,6 +92,27 @@ class File:
 
     def to_line(self):
         return f'{self.hash}:0:{self.uuid}:{self.content_count}:{self.size}\n'
+
+    def update_document_file(self, api: 'API', files: List['File'], content_datas: Dict[str, Any]) -> bytes:
+        document_file_content = ['3\n']
+        document_file_hash = sha256()
+        self.size = 0
+        for file in sorted(files, key=lambda file: file.uuid):
+            if data := content_datas.get(file.uuid):
+                file.hash = make_hash(data)
+                file.size = len(data)
+            elif file.uuid.endswith('.content') or file.uuid.endswith('.metadata'):
+                api.log(f"File {file.uuid} not found in content data: {file.hash}")
+                api.spread_event(APIFatal())
+
+            document_file_hash.update(bytes.fromhex(file.hash))
+            self.size += file.size
+
+            document_file_content.append(file.to_line())
+
+        document_file_content = ''.join(document_file_content).encode()
+        self.hash = document_file_hash.hexdigest()
+        return document_file_content
 
     def save_to_cache(self, api: 'API', data: bytes):
         location = os.path.join(api.sync_file_path, self.hash)

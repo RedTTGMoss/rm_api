@@ -4,7 +4,6 @@ import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from hashlib import sha256
 from traceback import print_exc
 from typing import Dict, List, Union
 
@@ -328,24 +327,7 @@ class API:
         progress.stage = STAGE_COMPILE_DATA
 
         for document, document_file in zip(documents, document_files):
-            document_file_content = ['3\n']
-            document_file_hash = sha256()
-            document_file.size = 0
-            for file in sorted(document.files, key=lambda file: file.uuid):
-                if data := content_datas.get(file.uuid):
-                    file.hash = make_hash(data)
-                    file.size = len(data)
-                elif file.uuid.endswith('.content') or file.uuid.endswith('.metadata'):
-                    self.log(f"File {file.uuid} not found in content data: {file.hash}")
-                    self.spread_event(APIFatal())
-
-                document_file_hash.update(bytes.fromhex(file.hash))
-                document_file.size += file.size
-
-                document_file_content.append(file.to_line())
-
-            document_file_content = ''.join(document_file_content).encode()
-            document_file.hash = document_file_hash.hexdigest()
+            document_file_content = document_file.update_document_file(self, document.files, content_datas)
 
             # Add the document file to the content_data
             content_datas[document_file.uuid] = document_file_content
@@ -353,14 +335,7 @@ class API:
 
         # Prepare the root file
         progress.stage = STAGE_PREPARE_ROOT
-        root_file_content = ['3\n']
-        root_file_hash = sha256()
-        for file in sorted(new_root_files, key=lambda file: file.uuid):
-            root_file_content.append(file.to_root_line())
-            root_file_hash.update(bytes.fromhex(file.hash))
-
-        root_file_content = ''.join(root_file_content).encode()
-        root_file = File(root_file_hash.hexdigest(), f"root.docSchema", len(new_root_files), len(root_file_content))
+        root_file_content, root_file = File.create_root_file(new_root_files)
         new_root['hash'] = root_file.hash
 
         files_with_changes.append(root_file)
@@ -453,14 +428,7 @@ class API:
         # Prepare the root file
         progress.stage = STAGE_PREPARE_ROOT
         root_sync_operation = DocumentSyncProgress('root', progress)
-        root_file_content = ['3\n']
-        root_file_hash = sha256()
-        for file in sorted(new_root_files, key=lambda file: file.uuid):
-            root_file_content.append(file.to_root_line())
-            root_file_hash.update(bytes.fromhex(file.hash))
-
-        root_file_content = ''.join(root_file_content).encode()
-        root_file = File(root_file_hash.hexdigest(), f"root.docSchema", len(new_root_files), len(root_file_content))
+        root_file_content, root_file = File.create_root_file(new_root_files)
         new_root['hash'] = root_file.hash
 
         put_file(self, root_file, root_file_content, root_sync_operation)
