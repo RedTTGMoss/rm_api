@@ -1213,7 +1213,6 @@ class Document:
             'server_hash': self.server_hash,
             'content': self.content.__dict__,
             'metadata': self.metadata.__dict__,
-            'content_data': self.content_data,
             'files_available': list(self.files_available.keys()),
             'files': [file.__dict__ for file in self.files],
             'downloading': self.downloading,
