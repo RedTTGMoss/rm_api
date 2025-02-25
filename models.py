@@ -327,7 +327,6 @@ class Zoom:
         self._zoom_mode = ZoomModes(zoom_mode) if zoom_mode else None
         if not self._zoom_mode:
             content = self.ZOOM_TEMPLATE
-            return
         self.custom_zoom_center_x = content['customZoomCenterX']
         self.custom_zoom_center_y = content['customZoomCenterY']
         self.custom_zoom_page_width = content['customZoomPageWidth']
@@ -339,10 +338,8 @@ class Zoom:
         return self._zoom_mode or ZoomModes.BestFit
 
     def to_dict(self):
-        if not self._zoom_mode:
-            return {}
         return {
-            'zoomMode': self._zoom_mode.value,
+            'zoomMode': self.zoom_mode.value,
             "customZoomCenterX": self.custom_zoom_center_x,
             "customZoomCenterY": self.custom_zoom_center_y,
             "customZoomOrientation": "portrait",
@@ -491,10 +488,10 @@ class Content:
                 'pages': c_page_pages,
                 'original': TimestampedValue.create(original_page_count, bare=True),
                 'lastOpened': TimestampedValue.create(last_opened_page, bare=True),
-                'uuids': {
+                'uuids': [{
                     'first': make_uuid(),  # Author
                     'second': 1
-                }
+                }]
             }
         )
 
