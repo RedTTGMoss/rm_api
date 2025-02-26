@@ -996,7 +996,7 @@ class Document:
         if callback is not None:
             callback()
 
-    def _load_files(self):
+    def _load_files(self, callback=None):
         for file in self.files:
             if file.uuid not in self.content_files:
                 continue
@@ -1005,6 +1005,8 @@ class Document:
             data = get_file_contents(self.api, file.hash, binary=True)
             if data:
                 self.content_data[file.uuid] = data
+        if callback:
+            callback()
 
     def unload_files(self):
         to_unload = []
@@ -1026,8 +1028,7 @@ class Document:
         if not self.available:
             threading.Thread(target=self._download_files, args=(callback,)).start()
         else:
-            self._load_files()
-            callback()
+            threading.Thread(target=self._load_files, args=(callback,)).start()
 
     def ensure_download(self):
         if not self.available:
