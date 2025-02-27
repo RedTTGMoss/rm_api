@@ -675,7 +675,7 @@ class Metadata:
             self.last_opened_page = metadata.get('lastOpenedPage', 0)
 
     @classmethod
-    def new(cls, name: str, parent: Optional[str], document_type: str = DocumentTypes.Document.value):
+    def new(cls, name: str, parent: Optional[str] = None, document_type: str = DocumentTypes.Document.value):
         now = now_time()
         metadata = {
             "deleted": False,
