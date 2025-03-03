@@ -496,7 +496,7 @@ class Content:
         )
 
     @classmethod
-    def new_notebook(cls, author_id: str = None, page_count: int = 1):
+    def new_notebook(cls, author_id: Optional[str] = None, page_count: int = 1):
         first_page_uuid = make_uuid()
         if not author_id:
             author_id = make_uuid()
