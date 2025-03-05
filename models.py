@@ -87,6 +87,10 @@ class File:
         file_hash, _, file_uuid, content_count, file_size = line.split(':')
         return cls(file_hash, file_uuid, content_count, file_size)
 
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(data['hash'], data['uuid'], data['content_count'], data['file_size'], data.get('rm_filename'))
+
     def to_root_line(self):
         return f'{self.hash}:80000000:{self.uuid}:{self.content_count}:{self.size}\n'
 
