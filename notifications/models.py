@@ -2,6 +2,7 @@
 This module contains the models for the notifications.
 Since these notifications are pretty mediocre, don't let the length of this file fool you.
 """
+from ..sync_stages import STAGE_START
 
 
 class Notification:  # A class to be used as a base class for all notifications
@@ -50,9 +51,9 @@ class SyncProgressBase(LongLasting):
     finished: bool
 
     def __init__(self):
-        self.done = 0
-        self.total = 0
-        self.stage = None
+        self.done: int = 0
+        self.total: int = 0
+        self.stage: int = STAGE_START
 
 
 class FileSyncProgress(SyncProgressBase):
