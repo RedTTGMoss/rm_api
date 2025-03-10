@@ -12,7 +12,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3 import Retry
 
-from .auth import get_token, refresh_token
+from .auth import MissingTabletLink, get_token, refresh_token
 from .models import DocumentCollection, Document, Metadata, Content, make_uuid, File, make_hash
 from .notifications import handle_notifications
 from .notifications.models import FileSyncProgress, SyncRefresh, DocumentSyncProgress, NewDocuments, APIFatal
@@ -81,7 +81,11 @@ class API:
         token = os.environ.get("TOKEN")
         if token is None:
             if os.path.exists(self.token_file_path):
-                self.token = open(self.token_file_path).read()
+                token = open(self.token_file_path).read()
+                try:
+                    self.set_token(token)
+                except MissingTabletLink:
+                    self.set_token(token, remarkable=True)
             else:
                 self.get_token()
         else:
@@ -131,17 +135,21 @@ class API:
     @property
     def token(self):
         return self._token
-
-    @token.setter
-    def token(self, value):
+    
+    def set_token(self, value, remarkable: bool = False):
         if not value:
             return
-        token = refresh_token(self, value)
+        token = refresh_token(self, value, remarkable)
         self.session.headers["Authorization"] = f"Bearer {token}"
         self._token = token
 
-    def get_token(self, code: str = None):
-        self.token = get_token(self, code)
+    @token.setter
+    def token(self, value):
+        self.set_token(value)
+    
+
+    def get_token(self, code: str = None, remarkable: bool = False):
+        self.set_token(get_token(self, code, remarkable), remarkable)
 
     def get_documents(self, progress=lambda d, i: None):
         self.check_for_document_storage()
@@ -471,7 +479,7 @@ class API:
 
         new_root = {
             "broadcast": True,
-            "generation": root['generation']
+            "generation": root.get('generation', 0)
         }
 
         root_file_content = b'3\n'

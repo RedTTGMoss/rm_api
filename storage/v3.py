@@ -358,6 +358,15 @@ def process_file_content(
 def get_documents_using_root(api: 'API', progress, root):
     progress(0, 1)
     try:
+        if root == 'miss':
+            print(
+                    f"{Fore.GREEN}{Style.BRIGHT}"
+                    f"Creating new root file."
+                    f"{Fore.RESET}{Style.RESET_ALL}"
+                )
+            api.reset_root()
+            root = api.get_root().get('hash', 'miss')
+            return get_documents_using_root(api, progress, root)
         _, files = get_file(api, root)
         if _ == -1 or len(files) == 0:  # Blank root file / Missing
             if api.offline_mode and _ == -1:

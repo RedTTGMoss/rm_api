@@ -51,6 +51,6 @@ def update_root(api: 'API', root: dict):
 
 
 def get_documents_old_sync(api: 'API', progress):
-    root = get_root(api)['hash']
+    root = get_root(api).get('hash', 'miss')
     api.last_root = root
     return get_documents_using_root(api, progress, root)
