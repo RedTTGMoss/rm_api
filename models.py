@@ -1252,10 +1252,13 @@ class Document:
     def get_page_count(self):
         if not self.content.usable:
             return -1
-        return len(self.content.c_pages.pages)
+        return len(self.content.c_pages.pages) or -1
 
     def get_read(self):
-        return round(((self.metadata.last_opened_page + 1) / max(1, self.get_page_count())) * 100)
+        page_count = self.get_page_count()
+        if page_count < 0:
+            return -1
+        return round(((self.metadata.last_opened_page + 1) / max(1, page_count)) * 100) or -1
 
     def randomize_uuids(self):
         for page in self.content.c_pages.pages:
