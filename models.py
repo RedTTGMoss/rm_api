@@ -1238,6 +1238,8 @@ class Document:
         return document
 
     def get_page_count(self):
+        if not self.content.usable:
+            return -1
         return len(self.content.c_pages.pages)
 
     def get_read(self):
