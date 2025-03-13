@@ -493,11 +493,6 @@ class Content:
             if i == self._content.get('lastOpenedPage'):
                 last_opened_page = page
 
-        if len(c_page_pages) == 0 and not self.content_file_pdf_check:
-            self.usable = False
-            if show_debug:
-                print(f'{Fore.RED}Failed to promote. No pages found.{Fore.RESET}')
-
         self.c_pages = CPages(
             {
                 'pages': c_page_pages,
@@ -650,6 +645,8 @@ class Content:
                 self.content_file_pdf_check = False
             except KeyError:  # If files are missing for whatever reason
                 pass
+        elif self.file_type == 'epub' and len(self.c_pages.pages) == 0:
+            self.usable = False
         size = 0
         for file in document.files:
             if file.uuid in document.content_data:
