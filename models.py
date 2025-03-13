@@ -432,12 +432,12 @@ class Content:
             self.parse_version_2()
             return
         elif self.version == 1:
-            self.parse_version_1()
+            self.parse_version_1(show_debug)
             return
         if not self.version:
             # Try to parse content version 1 if there is no version
             try:
-                self.parse_version_1()
+                self.parse_version_1(show_debug)
             except KeyError:
                 # Fails to parse as version 1, just fail cause the version is missing
                 self.usable = False
@@ -460,7 +460,7 @@ class Content:
     def parse_version_2(self):
         self.c_pages = CPages(self._content['cPages'])
 
-    def parse_version_1(self):
+    def parse_version_1(self, show_debug: bool = False):
         self.version = 2  # promote to version 2
         # Handle error checking since a lot of these can be empty
         try:
@@ -493,8 +493,10 @@ class Content:
             if i == self._content.get('lastOpenedPage'):
                 last_opened_page = page
 
-        if len(c_page_pages) == 0:
+        if len(c_page_pages) == 0 and not self.content_file_pdf_check:
             self.usable = False
+            if show_debug:
+                print(f'{Fore.RED}Failed to promote. No pages found.{Fore.RESET}')
 
         self.c_pages = CPages(
             {
