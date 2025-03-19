@@ -230,7 +230,7 @@ async def put_file_async(api: 'API', file: 'File', data: bytes, sync_event: Docu
             api.log("Put file timed out, this is okay, trying again...")
             return await put_file_async(api, file, data, sync_event)
 
-    if response.status != 200:
+    if response.status > 299 or response.status < 200:
         api.log(f"Put file failed google: {google} -> {response.status}\n{await response.text()}")
         return False
     else:
