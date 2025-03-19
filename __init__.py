@@ -62,6 +62,7 @@ class API:
         self.document_storage_uri = None
         self.document_notifications_uri = None
         self._upload_lock = threading.Lock()
+        self._hook_lock = threading.Lock()
         self.sync_notifiers: int = 0
         self._hook_list = {}  # Used for event hooks
         self._use_new_sync = False
@@ -135,7 +136,7 @@ class API:
     @property
     def token(self):
         return self._token
-    
+
     def set_token(self, value, remarkable: bool = False):
         if not value:
             return
@@ -146,7 +147,6 @@ class API:
     @token.setter
     def token(self, value):
         self.set_token(value)
-    
 
     def get_token(self, code: str = None, remarkable: bool = False):
         self.set_token(get_token(self, code, remarkable), remarkable)
@@ -166,17 +166,20 @@ class API:
             return get_root_old(self)
 
     def spread_event(self, event: object):
-        for hook in self._hook_list.values():
-            hook(event)
+        with self._hook_lock:
+            for hook in self._hook_list.values():
+                hook(event)
 
     def add_hook(self, hook_id, hook):
-        self._hook_list[hook_id] = hook
+        with self._hook_lock:
+            self._hook_list[hook_id] = hook
 
     def remove_hook(self, hook_id):
-        try:
-            del self._hook_list[hook_id]
-        except KeyError:
-            pass
+        with self._hook_lock:
+            try:
+                del self._hook_list[hook_id]
+            except KeyError:
+                pass
 
     def check_for_document_storage(self):
         if self.offline_mode:

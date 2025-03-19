@@ -417,7 +417,7 @@ class Content:
         self.hash = content_hash
         self.usable = True
         self.c_pages: CPages = None
-        self.content_file_pdf_check = False
+        self.content_file_pdf_check = False  # There is a pdf but the pages aren't registered in the content
         self.cover_page_number: int = content.get('coverPageNumber', 0)
         self.dummy_document: bool = content.get('dummyDocument', False)
         self.file_type: str = content['fileType']
@@ -427,18 +427,27 @@ class Content:
         self.zoom = Zoom(content)
         self.orientation: str = content.get('orientation', 'portrait')
 
-        # Handle the different versions
+        # Handle parsing the different versions
         if self.version == 2:
             self.parse_version_2()
+            return
         elif self.version == 1:
-            self.parse_version_1()
+            self.parse_version_1(show_debug)
+            return
+        if not self.version:
+            # Try to parse content version 1 if there is no version
+            try:
+                self.parse_version_1(show_debug)
+            except KeyError:
+                # Fails to parse as version 1, just fail cause the version is missing
+                self.usable = False
+                if show_debug:
+                    print(f'{Fore.RED}Content file version is missing{Fore.RESET}')
         else:
+            # Fail because the version is something else than can be parsed
             self.usable = False
             if show_debug:
-                if not self.version:
-                    print(f'{Fore.RED}Content file version is missing{Fore.RESET}')
-                else:
-                    print(f'{Fore.YELLOW}Content file version is unknown: {self.version}{Fore.RESET}')
+                print(f'{Fore.YELLOW}Content file version is unknown: {self.version}{Fore.RESET}')
 
     @property
     def is_landscape(self):
@@ -451,7 +460,7 @@ class Content:
     def parse_version_2(self):
         self.c_pages = CPages(self._content['cPages'])
 
-    def parse_version_1(self):
+    def parse_version_1(self, show_debug: bool = False):
         self.version = 2  # promote to version 2
         # Handle error checking since a lot of these can be empty
         try:
@@ -483,9 +492,6 @@ class Content:
                 last_opened_page = page
             if i == self._content.get('lastOpenedPage'):
                 last_opened_page = page
-
-        if len(c_page_pages) == 0:
-            self.usable = False
 
         self.c_pages = CPages(
             {
@@ -634,8 +640,13 @@ class Content:
 
     def check(self, document: 'Document'):
         if self.content_file_pdf_check and self.file_type == 'pdf':
-            self.parse_create_new_pdf_content_file(document)
-            self.content_file_pdf_check = False
+            try:
+                self.parse_create_new_pdf_content_file(document)
+                self.content_file_pdf_check = False
+            except KeyError:  # If files are missing for whatever reason
+                pass
+        elif self.file_type == 'epub' and len(self.c_pages.pages) == 0:
+            self.usable = False
         size = 0
         for file in document.files:
             if file.uuid in document.content_data:
@@ -1238,10 +1249,15 @@ class Document:
         return document
 
     def get_page_count(self):
-        return len(self.content.c_pages.pages)
+        if not self.content.usable:
+            return -1
+        return len(self.content.c_pages.pages) or -1
 
     def get_read(self):
-        return round(((self.metadata.last_opened_page + 1) / max(1, self.get_page_count())) * 100)
+        page_count = self.get_page_count()
+        if page_count < 0:
+            return -1
+        return round(((self.metadata.last_opened_page + 1) / max(1, page_count)) * 100) or -1
 
     def randomize_uuids(self):
         for page in self.content.c_pages.pages:
