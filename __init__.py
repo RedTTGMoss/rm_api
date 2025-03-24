@@ -44,6 +44,7 @@ class API:
         )
         http_adapter = HTTPAdapter(max_retries=self.retry_strategy)
         self.session = requests.Session()
+        self.force_quit = False
         self.session.mount("http://", http_adapter)
         self.session.mount("https://", http_adapter)
 

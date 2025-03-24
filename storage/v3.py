@@ -1,5 +1,6 @@
 import asyncio
 import base64
+from io import BytesIO, StringIO
 import json
 import os
 import ssl
@@ -8,7 +9,7 @@ from functools import lru_cache
 from hashlib import sha256
 from json import JSONDecodeError
 from traceback import format_exc, print_exc
-from typing import TYPE_CHECKING, Union, Tuple, List, Set
+from typing import TYPE_CHECKING, BinaryIO, Union, Tuple, List, Set
 
 import aiohttp
 import certifi
@@ -70,6 +71,7 @@ def make_storage_request(api: 'API', method, request, data: dict = None) -> Unio
 def make_files_request(api: 'API', method, file, data: dict = None, binary: bool = False, use_cache: bool = True,
                        enforce_cache: bool = False) -> \
         Union[str, None, dict, bool, bytes]:
+    # TODO: Add exceptions handling for all uses of this function
     if method == 'HEAD':
         method = 'GET'
         head = True
@@ -99,28 +101,60 @@ def make_files_request(api: 'API', method, file, data: dict = None, binary: bool
         method,
         FILES_URL.format(api.document_storage_uri, file),
         json=data or None,
-        stream=head,
+        stream=True,
         allow_redirects=not head
     )
+
     if head and response.status_code in (302, 404, 200):
         return response.status_code != 404
-    if response.content == b'{"message":"invalid hash"}\n':
+    
+    raw_readin = BytesIO()
+    text_readin = StringIO()
+    raw_readin_iter = response.iter_content(chunk_size=1024)
+
+    raw_readin.write(first_chunk := next(raw_readin_iter))
+
+
+    if first_chunk == b'{"message":"invalid hash"}\n':
+        response.close()
         return None
     elif not response.ok:
+        response.close()
         raise Exception(f"Failed to make files request - {response.status_code}\n{response.text}")
+    
     if binary:
         if location:
-            with open(location, "wb") as f:
-                f.write(response.content)
-        return response.content
+            try:
+                with open(location, "wb") as f:
+                    f.write(first_chunk)
+                    for chunk in raw_readin_iter:
+                        f.write(chunk)
+                        if api.force_quit:
+                            raise AssertionError("Force quit")
+            except AssertionError as e:
+                if os.path.exists(location):
+                    os.remove(location)
+                raise e
+        return raw_readin_iter.getvalue()
     else:
         if location:
-            with open(location, "w", encoding=DEFAULT_ENCODING) as f:
-                f.write(response.text)
+            try:
+                with open(location, "wb") as f:
+                    f.write(first_chunk)
+                    text_readin.write(first_chunk.decode(DEFAULT_ENCODING))
+                    for chunk in raw_readin_iter:
+                        f.write(chunk)
+                        text_readin.write(chunk.decode(DEFAULT_ENCODING))
+                        if api.force_quit:
+                            raise AssertionError("Force quit")
+            except AssertionError as e:
+                if os.path.exists(location):
+                    os.remove(location)
+                raise e
         try:
-            return response.json()
+            return json.loads(text_readin)
         except JSONDecodeError:
-            return response.text
+            return text_readin
 
 
 async def fetch_with_retries(session: aiohttp.ClientSession, url: str, method: str, retry_strategy: Retry,
