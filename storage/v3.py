@@ -27,7 +27,7 @@ from rm_api.storage.exceptions import NewSyncRequired
 
 FILES_URL = "{0}sync/v3/files/{1}"
 
-ssl_context = ssl.create_default_context(cafile=certifi.where())
+ssl_context = ssl.create_default_context(cafile=certifi.where() if os.name == 'darwin' else None)
 
 if TYPE_CHECKING:
     from rm_api import API
@@ -36,8 +36,8 @@ if TYPE_CHECKING:
 DEFAULT_ENCODING = 'utf-8'
 EXTENSION_ORDER = ['content', 'metadata', 'rm']
 
-if os.name == 'nt':
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+# if os.name == 'nt':
+#     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 def get_file_item_order(item: 'File'):
