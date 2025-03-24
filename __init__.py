@@ -15,7 +15,8 @@ from urllib3 import Retry
 from .auth import MissingTabletLink, get_token, refresh_token
 from .models import DocumentCollection, Document, Metadata, Content, make_uuid, File, make_hash
 from .notifications import handle_notifications
-from .notifications.models import FileSyncProgress, SyncRefresh, DocumentSyncProgress, NewDocuments, APIFatal
+from .notifications.models import FileSyncProgress, SyncRefresh, DocumentSyncProgress, NewDocuments, APIFatal, \
+    DownloadOperation
 from .storage.common import get_document_storage_uri, get_document_notifications_uri
 from .storage.new_sync import get_documents_new_sync, handle_new_api_steps
 from .storage.new_sync import get_root as get_root_new
@@ -44,7 +45,6 @@ class API:
         )
         http_adapter = HTTPAdapter(max_retries=self.retry_strategy)
         self.session = requests.Session()
-        self.force_quit = False
         self.session.mount("http://", http_adapter)
         self.session.mount("https://", http_adapter)
 
@@ -65,6 +65,7 @@ class API:
         self._upload_lock = threading.Lock()
         self._hook_lock = threading.Lock()
         self.sync_notifiers: int = 0
+        self.download_operations = []
         self._hook_list = {}  # Used for event hooks
         self._use_new_sync = False
         # noinspection PyTypeChecker
@@ -105,6 +106,26 @@ class API:
     @property
     def hook_list(self):
         return self._hook_list
+
+    def force_stop_all(self):
+        for operation in self.download_operations:
+            self.cancel_download_operation(operation)
+
+    def begin_download_operation(self, operation: DownloadOperation):
+        self.download_operations.append(operation)
+        self.spread_event(operation.begin_event)
+
+    def finish_download_operation(self, operation: DownloadOperation):
+        try:
+            self.download_operations.remove(operation)
+            self.spread_event(operation.finish_event)
+        except ValueError:
+            pass
+
+    def cancel_download_operation(self, operation: DownloadOperation):
+        self.download_operations.remove(operation)
+        operation.cancel()
+        self.spread_event(operation.cancel_event)
 
     def reconnect(self):
         self.connected_to_notifications = False
@@ -472,7 +493,7 @@ class API:
                 uri = f'https://{uri}'
             self.document_notifications_uri = uri
 
-    def log(self, *args, enable_print=True):
+    def log(self, *args, enable_print=False):
         with self.log_lock:
             if self.debug and enable_print:
                 print(*args)

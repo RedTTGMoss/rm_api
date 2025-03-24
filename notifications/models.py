@@ -2,7 +2,15 @@
 This module contains the models for the notifications.
 Since these notifications are pretty mediocre, don't let the length of this file fool you.
 """
+from io import BytesIO, TextIOWrapper
+from typing import Union, TYPE_CHECKING, Iterator
+
+from requests import Response
+
 from ..sync_stages import STAGE_START
+
+if TYPE_CHECKING:
+    from ..models import DocumentCollection, Document
 
 
 class Notification:  # A class to be used as a base class for all notifications
@@ -89,3 +97,83 @@ class DocumentSyncProgress(SyncProgressBase):
         self.finished_tasks += 1
         if self.file_sync_operation:
             self.file_sync_operation.done += 1
+
+
+class DownloadOperation(SyncProgressBase):
+    raw_read: BytesIO
+    text_read: TextIOWrapper
+    raw_read_iter: Iterator
+    first_chunk: bytes
+
+    def __init__(self, ref: Union['Document', 'DocumentCollection']):
+        super().__init__()
+        self.canceled = False
+        self.ref = ref
+        self.finished = False
+
+    def finish(self):
+        self.finished = True
+
+    def cancel(self):
+        self.canceled = True
+
+    def use_response(self, response: Response):
+        self.total = response.headers.get('content-length')
+        self.raw_read = BytesIO()
+        self.text_read = TextIOWrapper(self.raw_read, encoding="utf-8")
+        self.raw_read_iter = response.iter_content(chunk_size=1024)
+
+        self.first_chunk = self.next_chunk()
+
+    def iter(self):
+        for chunk in self.raw_read_iter:
+            self.raw_read.write(chunk)
+            self.done += len(chunk)
+            if self.canceled:
+                raise self.DownloadCancelException()
+            yield chunk
+
+    def next_chunk(self):
+        chunk = next(self.raw_read_iter)
+        self.raw_read.write(chunk)
+        self.done += len(chunk)
+        if self.canceled:
+            raise self.DownloadCancelException()
+        return chunk
+
+    def get_text(self) -> str:
+        self.text_read.flush()
+        self.text_read.seek(0)
+        return self.text_read.read()
+
+    def get_bytes(self) -> bytes:
+        self.raw_read.flush()
+        return self.raw_read.getvalue()
+
+    class DownloadCancelException(Exception):
+        ...
+
+    class DownloadOperationEvent(Notification):
+        def __init__(self, operation):
+            self.operation = operation
+
+    class DownloadCancelEvent(DownloadOperationEvent):
+        ...
+
+    class DownloadBeginEvent(DownloadOperationEvent):
+        ...
+
+    class DownloadFinishEvent(DownloadOperationEvent):
+        ...
+
+    @property
+    def cancel_event(self):
+        return self.DownloadCancelEvent(self)
+
+    @property
+    def begin_event(self):
+        return self.DownloadBeginEvent(self)
+
+    @property
+    def finish_event(self):
+        return self.DownloadFinishEvent(self)

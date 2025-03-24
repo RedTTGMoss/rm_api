@@ -15,7 +15,7 @@ from colorama import Fore
 
 from rm_api.defaults import RM_SCREEN_CENTER, RM_SCREEN_SIZE, ZoomModes, Orientations, DocumentTypes
 from rm_api.helpers import get_pdf_page_count
-from rm_api.notifications.models import APIFatal
+from rm_api.notifications.models import APIFatal, DownloadOperation
 from rm_api.storage.common import FileHandle
 from rm_api.storage.v3 import get_file_contents
 from rm_api.templates import BLANK_TEMPLATE
@@ -1004,7 +1004,12 @@ class Document:
         for file in self.files:
             if file.uuid not in self.content_files:
                 continue
-            self.content_data[file.uuid] = get_file_contents(self.api, file.hash, binary=True)
+            try:
+                self.content_data[file.uuid] = get_file_contents(self.api, file.hash, binary=True)
+            except DownloadOperation.DownloadCancelException:
+                self.downloading = False
+                self.files_available = {}
+                return
         self.downloading = False
         self.files_available = self.check_files_availability()
         self.check()
