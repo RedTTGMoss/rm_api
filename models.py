@@ -51,9 +51,11 @@ def make_hash(data: Union[str, bytes, FileHandle, dict]):
     return sha256(data).hexdigest()
 
 
-def try_to_load_int(rm_value: str):
+def try_to_load_int(rm_value: Union[str, int], default: int = 0):
     if not rm_value:
-        return 0
+        return default
+    elif isinstance(rm_value, int):
+        return rm_value
     else:
         return int(rm_value)
 
@@ -63,9 +65,9 @@ class File:
                  rm_filename=None):
         self.hash = file_hash
         self.uuid = file_uuid
-        self.content_count = int(content_count)
+        self.content_count = try_to_load_int(content_count)
         if isinstance(file_size, str):
-            self.size = int(file_size)
+            self.size = try_to_load_int(file_size)
         else:
             self.size = file_size
         self.rm_filename = rm_filename or file_uuid
@@ -422,7 +424,7 @@ class Content:
         self.dummy_document: bool = content.get('dummyDocument', False)
         self.file_type: str = content['fileType']
         self.version: int = content.get('formatVersion')
-        self.size_in_bytes: int = int(content.get('sizeInBytes', '-1'))
+        self.size_in_bytes: int = try_to_load_int(content.get('sizeInBytes'), -1)
         self.tags: List[Tag] = [Tag(tag) for tag in content.get('tags', ())]
         self.zoom = Zoom(content)
         self.orientation: str = content.get('orientation', 'portrait')
