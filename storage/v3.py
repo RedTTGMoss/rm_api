@@ -122,7 +122,7 @@ def make_files_request(api: 'API', method, file, data: dict = None, binary: bool
                 f.write(operation.first_chunk)
                 for chunk in operation.iter():
                     f.write(chunk)
-        except DownloadCancellation.DownloadCancelException as e:
+        except DownloadOperation.DownloadCancelException as e:
             if os.path.exists(location):
                 os.remove(location)
             raise e
@@ -392,7 +392,7 @@ def get_documents_using_root(api: 'API', progress, root):
                 )
                 return
             _, files = get_file(api, root, False)
-    except DownloadCancellation.DownloadCancelException:
+    except DownloadOperation.DownloadCancelException:
         return
     except AssertionError as e:
         raise e  # Allow AssertionError passthrough

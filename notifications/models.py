@@ -118,7 +118,7 @@ class DownloadOperation(SyncProgressBase):
         self.canceled = True
 
     def use_response(self, response: Response):
-        self.total = response.headers.get('content-length')
+        self.total = int(response.headers.get('content-length'))
         self.raw_read = BytesIO()
         self.text_read = TextIOWrapper(self.raw_read, encoding="utf-8")
         self.raw_read_iter = response.iter_content(chunk_size=1024)
