@@ -21,7 +21,8 @@ from rm_api.storage.v3 import get_file_contents
 from rm_api.templates import BLANK_TEMPLATE
 
 try:
-    from rm_lines import write_blocks, blank_document
+    from rm_lines.rmscene.scene_stream import write_blocks
+    from rm_lines.writer import blank_document
 except ModuleNotFoundError:
     write_blocks = blank_document = None
 
