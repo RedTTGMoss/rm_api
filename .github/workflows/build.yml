@@ -6,8 +6,16 @@ on:
   push:
     tags: [ "*" ]
     branches-ignore: [ "main" ]
+    paths:
+      - 'rm_api/**'
+      - 'pyproject.toml'
+      - '.github/workflows/build.yml'
   pull_request:
     branches: [ "main", "experimental" ]
+    paths:
+      - 'rm_api/**'
+      - 'pyproject.toml'
+      - '.github/workflows/build.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
