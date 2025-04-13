@@ -1096,7 +1096,7 @@ class Document:
                      notebook_data: List[Union[bytes, FileHandle]] = [], metadata: Metadata = None,
                      content: Content = None) -> 'Document':
         if not (write_blocks or blank_document):
-            raise ImportError('rm_lines is not available')
+            raise ImportError('rm_lines is not available, please install rm_lines to use this feature')
         metadata = Metadata.new(name, parent) if not metadata else metadata
         content = Content.new_notebook(api.author_id, page_count) if not content else content
 
