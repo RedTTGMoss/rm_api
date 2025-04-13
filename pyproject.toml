@@ -6,6 +6,7 @@ authors = [
     {name = "RedTTG",email = "red@redttg.com"}
 ]
 readme = "README.md"
+license = "LICENSE"
 requires-python = ">=3.9"
 dependencies = [
     "requests (>=2.32.3,<2.33.0)",
