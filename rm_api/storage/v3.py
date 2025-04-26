@@ -59,7 +59,6 @@ def make_storage_request(api: 'API', method, request, data: dict = None) -> Unio
         api.use_new_sync = True
         raise NewSyncRequired()
     if response.status_code != 200:
-        print(response.text, response.status_code)
         return None
     try:
         return response.json()

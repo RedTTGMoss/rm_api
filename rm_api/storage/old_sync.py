@@ -15,7 +15,7 @@ SYNC_ROOT_URL = "{0}sync/v3/root"
 def get_root(api: 'API'):
     if api.offline_mode:
         return {"hash": api.last_root}
-    return make_storage_request(api, "GET", SYNC_ROOT_URL)
+    return make_storage_request(api, "GET", SYNC_ROOT_URL) or {}
 
 
 class RootUploadFailure(Exception):
