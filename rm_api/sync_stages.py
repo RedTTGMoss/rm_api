@@ -19,7 +19,10 @@ STAGE_SYNC = 10
 
 # Download operations
 UNKNOWN_DOWNLOAD_OPERATION = 11
-FETCH_FILE = 12  # Getting the existence of a file
-GET_FILE = 13  # Getting the contents of a listing file
-GET_CONTENTS = 14  # Getting the contents of any file
-DOWNLOAD_CONTENT = 15  # When a file is being downloaded on a user level, not metadata level
+FETCH_FILE = 12  # Check if file exists, size so on.
+FETCH_CACHE = 13  # The file exists in cache, get size from cache.
+GET_FILE = 14  # Getting the contents of a listing file.
+GET_CONTENTS = 15  # Getting the contents of any file.
+DOWNLOAD_CONTENT = 16  # When a file is being downloaded on a user level, not metadata level.
+LOAD_CONTENT = 17  # When a file is being loaded from cache.
+MISSING_CONTENT = 18  # When a file is missing in the cloud and in cache.

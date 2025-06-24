@@ -120,8 +120,12 @@ class DownloadOperation(SyncProgressBase):
     def cancel(self):
         self.canceled = True
 
-    def use_response(self, response: Response):
+    def use_response(self, response: Response, head: bool = False):
+        # Only grab the total size if it's a head request.
         self.total = int(response.headers.get('content-length'))
+        self.done = 0
+        if head:
+            return
         self.raw_read = BytesIO()
         self.text_read = TextIOWrapper(self.raw_read, encoding="utf-8")
         self.raw_read_iter = response.iter_content(chunk_size=1024)
@@ -163,6 +167,9 @@ class DownloadOperation(SyncProgressBase):
     class DownloadCancelEvent(DownloadOperationEvent):
         ...
 
+    class DownloadPollEvent(DownloadOperationEvent):
+        ...
+
     class DownloadBeginEvent(DownloadOperationEvent):
         ...
 
@@ -176,6 +183,10 @@ class DownloadOperation(SyncProgressBase):
     @property
     def begin_event(self):
         return self.DownloadBeginEvent(self)
+
+    @property
+    def poll_event(self):
+        return self.DownloadPollEvent(self)
 
     @property
     def finish_event(self):

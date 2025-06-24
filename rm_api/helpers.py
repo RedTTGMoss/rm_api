@@ -3,7 +3,7 @@ from io import BytesIO
 from itertools import islice
 from threading import Thread
 from traceback import format_exc
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Set
 
 from PyPDF2 import PdfReader
 from colorama import Fore
@@ -45,7 +45,7 @@ def download_operation_wrapper(fn):
     @wraps(fn)
     def wrapped(api: 'API', *args, **kwargs):
         ref = kwargs.get('ref')  # Download operation reference, for example document or collection
-        stage = kwargs.get('stage', UNKNOWN_DOWNLOAD_OPERATION)
+        stage = kwargs.get('stage')
         update = kwargs.get('update')
         if ref is not None:
             del kwargs['ref']
@@ -53,20 +53,24 @@ def download_operation_wrapper(fn):
             del kwargs['stage']
         if update is not None:
             del kwargs['update']
-        operation = DownloadOperation(ref, stage, update)
+        operation = kwargs.get('operation') or DownloadOperation(ref)
+        operation.stage = stage or operation.stage
+        operation.update_ref = update or operation.update_ref
         if update:
-            setattr(update, 'download_operation', operation)
-        api.begin_download_operation(operation)
+            getattr(update, 'add_download_operation')(operation)
         kwargs['operation'] = operation
         try:
             data = fn(api, *args, **kwargs)
         except DownloadOperation.DownloadCancelException:
+            if update:
+                getattr(update, 'remove_download_operation')(operation)
             api.log(f'DOWNLOAD CANCELLED\n{Fore.LIGHTBLACK_EX}{format_exc()}{Fore.RESET}')
             raise
-        operation.finish()
-        if update:
-            setattr(update, 'download_operation', None)
-        api.finish_download_operation(operation)
+        if operation.done >= operation.total:
+            operation.finish()
+            if update:
+                getattr(update, 'remove_download_operation')(operation)
+            api.finish_download_operation(operation)
         return data
 
     return wrapped
@@ -89,3 +93,28 @@ def download_operation_wrapper_with_stage(stage: int):
         return wrapped
 
     return decorator
+
+
+class DownloadOperationsSupport:
+    def __init__(self):
+        self._download_operations: Set[DownloadOperation] = set()
+
+    def add_download_operation(self, operation: DownloadOperation):
+        self._download_operations.add(operation)
+
+    def remove_download_operation(self, operation: DownloadOperation):
+        self._download_operations.remove(operation)
+
+    @property
+    def downloading(self):
+        if len(self._download_operations) == 0:
+            return False
+        return any(not op.finished for op in self._download_operations if not op.canceled)
+
+    @property
+    def download_done(self):
+        return sum(op.done for op in self._download_operations if not op.canceled)
+
+    @property
+    def download_total(self):
+        return sum(op.total for op in self._download_operations if not op.canceled)

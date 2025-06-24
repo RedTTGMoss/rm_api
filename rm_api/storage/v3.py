@@ -24,7 +24,7 @@ from rm_api.notifications.models import APIFatal, DownloadOperation
 from rm_api.notifications.models import DocumentSyncProgress, FileSyncProgress
 from rm_api.storage.common import FileHandle, ProgressFileAdapter
 from rm_api.storage.exceptions import NewSyncRequired
-from rm_api.sync_stages import FETCH_FILE, GET_CONTENTS, GET_FILE
+from rm_api.sync_stages import FETCH_FILE, GET_CONTENTS, GET_FILE, LOAD_CONTENT, MISSING_CONTENT, FETCH_CACHE
 
 FILES_URL = "{0}sync/v3/files/{1}"
 
@@ -80,21 +80,29 @@ def make_files_request(api: 'API', method, file, data: dict = None, binary: bool
     else:
         location = None
     if use_cache and location and os.path.exists(location):
+        operation.total = os.path.getsize(location)
         if head:
+            operation.stage = FETCH_CACHE
+            api.poll_download_operation(operation)
             return True
+        operation.stage = LOAD_CONTENT
+        api.begin_download_operation(operation)
         if binary:
             with open(location, 'rb') as f:
-                return f.read()
+                cache_data = f.read()
         else:
             with open(location, 'r', encoding=DEFAULT_ENCODING) as f:
                 data = f.read()
             try:
-                return json.loads(data)
+                cache_data = json.loads(data)
             except JSONDecodeError:
-                return data
+                cache_data = data
+        operation.done = operation.total
+        return cache_data
     if enforce_cache:
         # Checked cache and it wasn't there
         return None
+
     response = api.session.request(
         method,
         FILES_URL.format(api.document_storage_uri, file),
@@ -102,16 +110,26 @@ def make_files_request(api: 'API', method, file, data: dict = None, binary: bool
         stream=True,
         allow_redirects=not head
     )
-    operation.use_response(response)
+    operation.use_response(response, head)
+    if head:
+        api.poll_download_operation(operation)
+    else:
+        api.begin_download_operation(operation)
 
     if head and response.status_code in (302, 404, 200):
+        response.close()  # We don't need the body for HEAD requests
         return response.status_code != 404
+
+    if head:
+        operation.use_response(response)
 
     if operation.first_chunk == b'{"message":"invalid hash"}\n':
         response.close()
+        operation.stage = MISSING_CONTENT
         return None
     elif not response.ok:
         response.close()
+        operation.stage = MISSING_CONTENT
         raise Exception(f"Failed to make files request - {response.status_code}\n{response.text}")
 
     if location:
@@ -294,8 +312,17 @@ def _check_file_exists(api: 'API', file, binary: bool = False, use_cache: bool =
 
 
 @lru_cache(maxsize=600)
-def check_file_exists(api: 'API', file, binary: bool = False, use_cache: bool = True):
-    return _check_file_exists(api, file, binary=binary, use_cache=use_cache, ref=file, stage=FETCH_FILE)
+def check_file_exists(api: 'API', file, binary: bool = False, use_cache: bool = True,
+                      operation: DownloadOperation = None):
+    return _check_file_exists(api, file, binary=binary, use_cache=use_cache, ref=file, stage=FETCH_FILE,
+                              operation=operation)
+
+
+@lru_cache(maxsize=600)
+def poll_file(api: 'API', file, binary: bool = False, use_cache: bool = True,
+              operation: DownloadOperation = None):
+    return _check_file_exists(api, file, binary=binary, use_cache=use_cache, ref=file, stage=FETCH_FILE,
+                              operation=operation)
 
 
 def process_file_content(

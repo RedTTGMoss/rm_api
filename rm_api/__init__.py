@@ -4,6 +4,7 @@ import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from functools import wraps
 from traceback import print_exc
 from typing import Dict, List, Union
 
@@ -18,6 +19,7 @@ from .notifications import handle_notifications
 from .notifications.models import FileSyncProgress, SyncRefresh, DocumentSyncProgress, NewDocuments, APIFatal, \
     DownloadOperation
 from .storage.common import get_document_storage_uri, get_document_notifications_uri
+from .storage.exceptions import NewSyncRequired
 from .storage.new_sync import get_documents_new_sync, handle_new_api_steps
 from .storage.new_sync import get_root as get_root_new
 from .storage.old_sync import get_documents_old_sync, update_root, RootUploadFailure
@@ -31,6 +33,21 @@ colorama.init()
 DEFAULT_REMARKABLE_URI = "https://webapp.cloud.remarkable.com/"
 DEFAULT_REMARKABLE_DISCOVERY_URI = "https://service-manager-production-dot-remarkable-production.appspot.com/"
 
+
+def retry_on_version_bump(fn):
+    """
+    Just retries the function if NewSyncRequired is raised.
+    The API should have already been updated to use the new sync version,
+    so this is just a way to handle the case where the API version has changed and relay to retry the operation.
+    """
+    @wraps(fn)
+    def wrapper(self, *args, **kwargs):
+        try:
+            return fn(self, *args, **kwargs)
+        except NewSyncRequired:
+            return fn(self, *args, **kwargs)
+
+    return wrapper
 
 class API:
     document_collections: Dict[str, DocumentCollection]
@@ -65,7 +82,7 @@ class API:
         self._upload_lock = threading.Lock()
         self._hook_lock = threading.Lock()
         self.sync_notifiers: int = 0
-        self.download_operations = []
+        self.download_operations = set()
         self._hook_list = {}  # Used for event hooks
         self._use_new_sync = False
         # noinspection PyTypeChecker
@@ -112,12 +129,16 @@ class API:
         return self.download_operations[-1] if self.download_operations else None
 
     def force_stop_all(self):
-        for operation in self.download_operations:
+        for operation in list(self.download_operations):
             self.cancel_download_operation(operation)
 
     def begin_download_operation(self, operation: DownloadOperation):
-        self.download_operations.append(operation)
+        self.download_operations.add(operation)
         self.spread_event(operation.begin_event)
+
+    def poll_download_operation(self, operation: DownloadOperation):
+        self.download_operations.add(operation)
+        self.spread_event(operation.poll_event)
 
     def finish_download_operation(self, operation: DownloadOperation):
         try:
@@ -177,6 +198,7 @@ class API:
     def get_token(self, code: str = None, remarkable: bool = False):
         self.set_token(get_token(self, code, remarkable), remarkable)
 
+    @retry_on_version_bump
     def get_documents(self, progress=lambda d, i: None):
         self.check_for_document_storage()
         if self.use_new_sync:
@@ -184,6 +206,7 @@ class API:
         else:
             get_documents_old_sync(self, progress)
 
+    @retry_on_version_bump
     def get_root(self):
         self.check_for_document_storage()
         if self.use_new_sync:

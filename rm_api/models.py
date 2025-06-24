@@ -14,7 +14,7 @@ from typing import List, TYPE_CHECKING, Generic, T, Union, TypedDict, Dict, Opti
 from colorama import Fore
 
 from rm_api.defaults import RM_SCREEN_CENTER, RM_SCREEN_SIZE, ZoomModes, Orientations, DocumentTypes
-from rm_api.helpers import get_pdf_page_count
+from rm_api.helpers import get_pdf_page_count, DownloadOperationsSupport
 from rm_api.notifications.models import APIFatal, DownloadOperation
 from rm_api.storage.common import FileHandle
 from rm_api.storage.v3 import get_file_contents
@@ -925,7 +925,7 @@ class DocumentCollection:
         return my_items, my_copy
 
 
-class Document:
+class Document(DownloadOperationsSupport):
     unknown_file_types = set()
     KNOWN_FILE_TYPES = [
         'pdf', 'notebook', 'epub'
@@ -936,10 +936,10 @@ class Document:
 
     files: List[File]
     content_data: Dict[str, bytes]
-    download_operation: Optional['DownloadOperation']
 
     def __init__(self, api: 'API', content: Content, metadata: Metadata, files: List[File], uuid: str,
                  server_hash: str = None, check: bool = True):
+        super().__init__()
         self.api = api
         self.content = content
         self.metadata = metadata
@@ -948,8 +948,6 @@ class Document:
         self.server_hash = server_hash
         self.content_data = {}
         self.files_available: Dict[str, File] = self.check_files_availability()
-        self.downloading = False
-        self.download_operation = None
         self.provision = False  # Used during sync to disable opening or exporting the file!!!
 
         if self.content.file_type not in self.KNOWN_FILE_TYPES and \
@@ -1006,18 +1004,15 @@ class Document:
             if callback is not None:
                 callback()
             return
-        self.downloading = True
         for file in self.files:
             if file.uuid not in self.content_files:
                 continue
             try:
                 self.content_data[file.uuid] = get_file_contents(self.api, file.hash, binary=True,
-                                                                 stage=DOWNLOAD_CONTENT, update=self)
+                                                                 stage=DOWNLOAD_CONTENT, update=self, ref=self)
             except DownloadOperation.DownloadCancelException:
-                self.downloading = False
                 self.files_available = {}
                 return
-        self.downloading = False
         self.files_available = self.check_files_availability()
         self.check()
         if callback is not None:
@@ -1029,7 +1024,7 @@ class Document:
                 continue
             if file.uuid in self.content_data:
                 continue
-            data = get_file_contents(self.api, file.hash, binary=True, update=self)
+            data = get_file_contents(self.api, file.hash, binary=True, update=self, ref=self)
             if data:
                 self.content_data[file.uuid] = data
         if callback:
