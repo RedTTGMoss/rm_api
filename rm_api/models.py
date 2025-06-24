@@ -19,6 +19,7 @@ from rm_api.notifications.models import APIFatal, DownloadOperation
 from rm_api.storage.common import FileHandle
 from rm_api.storage.v3 import get_file_contents
 from rm_api.templates import BLANK_TEMPLATE
+from rm_api.sync_stages import DOWNLOAD_CONTENT
 
 try:
     from rm_lines.rmscene.scene_stream import write_blocks
@@ -935,6 +936,7 @@ class Document:
 
     files: List[File]
     content_data: Dict[str, bytes]
+    download_operation: Optional['DownloadOperation']
 
     def __init__(self, api: 'API', content: Content, metadata: Metadata, files: List[File], uuid: str,
                  server_hash: str = None, check: bool = True):
@@ -947,6 +949,7 @@ class Document:
         self.content_data = {}
         self.files_available: Dict[str, File] = self.check_files_availability()
         self.downloading = False
+        self.download_operation = None
         self.provision = False  # Used during sync to disable opening or exporting the file!!!
 
         if self.content.file_type not in self.KNOWN_FILE_TYPES and \
@@ -1008,7 +1011,8 @@ class Document:
             if file.uuid not in self.content_files:
                 continue
             try:
-                self.content_data[file.uuid] = get_file_contents(self.api, file.hash, binary=True)
+                self.content_data[file.uuid] = get_file_contents(self.api, file.hash, binary=True,
+                                                                 stage=DOWNLOAD_CONTENT, update=self)
             except DownloadOperation.DownloadCancelException:
                 self.downloading = False
                 self.files_available = {}
@@ -1025,7 +1029,7 @@ class Document:
                 continue
             if file.uuid in self.content_data:
                 continue
-            data = get_file_contents(self.api, file.hash, binary=True)
+            data = get_file_contents(self.api, file.hash, binary=True, update=self)
             if data:
                 self.content_data[file.uuid] = data
         if callback:
@@ -1043,7 +1047,7 @@ class Document:
         for file in self.files:
             if file.uuid not in self.content_files:
                 continue
-            data = get_file_contents(self.api, file.hash, binary=True, enforce_cache=True)
+            data = get_file_contents(self.api, file.hash, binary=True, enforce_cache=True, update=self)
             if data:
                 self.content_data[file.uuid] = data
 

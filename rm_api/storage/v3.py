@@ -19,11 +19,12 @@ from urllib3 import Retry
 
 import rm_api.models as models
 from rm_api.defaults import DocumentTypes
-from rm_api.helpers import batched, download_operation_wrapper
+from rm_api.helpers import batched, download_operation_wrapper, download_operation_wrapper_with_stage
 from rm_api.notifications.models import APIFatal, DownloadOperation
 from rm_api.notifications.models import DocumentSyncProgress, FileSyncProgress
 from rm_api.storage.common import FileHandle, ProgressFileAdapter
 from rm_api.storage.exceptions import NewSyncRequired
+from rm_api.sync_stages import FETCH_FILE, GET_CONTENTS, GET_FILE
 
 FILES_URL = "{0}sync/v3/files/{1}"
 
@@ -66,8 +67,6 @@ def make_storage_request(api: 'API', method, request, data: dict = None) -> Unio
         return response.text
 
 
-@lru_cache
-@download_operation_wrapper
 def make_files_request(api: 'API', method, file, data: dict = None, binary: bool = False, use_cache: bool = True,
                        enforce_cache: bool = False, operation: DownloadOperation = None) -> \
         Union[str, None, dict, bool, bytes]:
@@ -170,6 +169,7 @@ async def fetch_with_retries(session: aiohttp.ClientSession, url: str, method: s
                 await asyncio.sleep(wait_time)
             else:
                 raise e
+    return None
 
 
 async def put_file_async(api: 'API', file: 'File', data: bytes, sync_event: DocumentSyncProgress):
@@ -266,8 +266,10 @@ def put_file(api: 'API', file: 'File', data: bytes, sync_event: DocumentSyncProg
         loop.close()
 
 
-def get_file(api: 'API', file, use_cache: bool = True, raw: bool = False) -> Tuple[int, Union[List['File'], List[str]]]:
-    res = make_files_request(api, "GET", file, use_cache=use_cache)
+@download_operation_wrapper_with_stage(GET_FILE)
+def get_file(api: 'API', file, use_cache: bool = True, raw: bool = False, operation: DownloadOperation = None) -> Tuple[
+    int, Union[List['File'], List[str]]]:
+    res = make_files_request(api, "GET", file, use_cache=use_cache, operation=operation)
     if not res:
         return -1, []
     if isinstance(res, int):
@@ -278,13 +280,22 @@ def get_file(api: 'API', file, use_cache: bool = True, raw: bool = False) -> Tup
     return version, [models.File.from_line(line) for line in lines]
 
 
-def get_file_contents(api: 'API', file, binary: bool = False, use_cache: bool = True, enforce_cache: bool = False):
-    return make_files_request(api, "GET", file, binary=binary, use_cache=use_cache, enforce_cache=enforce_cache)
+@download_operation_wrapper_with_stage(GET_CONTENTS)
+def get_file_contents(api: 'API', file, binary: bool = False, use_cache: bool = True, enforce_cache: bool = False,
+                      operation: DownloadOperation = None):
+    return make_files_request(api, "GET", file, binary=binary, use_cache=use_cache, enforce_cache=enforce_cache,
+                              operation=operation)
+
+
+@download_operation_wrapper
+def _check_file_exists(api: 'API', file, binary: bool = False, use_cache: bool = True,
+                       operation: DownloadOperation = None):
+    return make_files_request(api, "HEAD", file, binary=binary, use_cache=use_cache, operation=operation)
 
 
 @lru_cache(maxsize=600)
 def check_file_exists(api: 'API', file, binary: bool = False, use_cache: bool = True):
-    return make_files_request(api, "HEAD", file, binary=binary, use_cache=use_cache)
+    return _check_file_exists(api, file, binary=binary, use_cache=use_cache, ref=file, stage=FETCH_FILE)
 
 
 def process_file_content(

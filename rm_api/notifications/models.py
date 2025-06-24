@@ -3,11 +3,11 @@ This module contains the models for the notifications.
 Since these notifications are pretty mediocre, don't let the length of this file fool you.
 """
 from io import BytesIO, TextIOWrapper
-from typing import Union, TYPE_CHECKING, Iterator
+from typing import Union, TYPE_CHECKING, Iterator, Any
 
 from requests import Response
 
-from ..sync_stages import STAGE_START
+from ..sync_stages import STAGE_START, UNKNOWN_DOWNLOAD_OPERATION
 
 if TYPE_CHECKING:
     from ..models import DocumentCollection, Document
@@ -105,10 +105,13 @@ class DownloadOperation(SyncProgressBase):
     raw_read_iter: Iterator
     first_chunk: bytes
 
-    def __init__(self, ref: Union['Document', 'DocumentCollection']):
+    def __init__(self, ref: Union['Document', 'DocumentCollection'], stage: int = UNKNOWN_DOWNLOAD_OPERATION,
+                 update_ref: Any = None):
         super().__init__()
         self.canceled = False
         self.ref = ref
+        self.update_ref = update_ref
+        self.stage = stage
         self.finished = False
 
     def finish(self):

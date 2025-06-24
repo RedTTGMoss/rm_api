@@ -107,6 +107,10 @@ class API:
     def hook_list(self):
         return self._hook_list
 
+    @property
+    def latest_download_operation(self):
+        return self.download_operations[-1] if self.download_operations else None
+
     def force_stop_all(self):
         for operation in self.download_operations:
             self.cancel_download_operation(operation)
