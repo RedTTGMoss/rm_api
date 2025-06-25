@@ -1024,7 +1024,7 @@ class Document(DownloadOperationsSupport):
                 continue
             if file.uuid in self.content_data:
                 continue
-            data = get_file_contents(self.api, file.hash, binary=True, update=self, ref=self)
+            data = get_file_contents(self.api, file.hash, binary=True, update=self, ref=self, enforce_cache=True)
             if data:
                 self.content_data[file.uuid] = data
         if callback:
