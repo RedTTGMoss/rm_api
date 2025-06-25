@@ -41,6 +41,9 @@ EXTENSION_ORDER = ['content', 'metadata', 'rm']
 # if os.name == 'nt':
 #     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
+class CacheMiss(Exception):
+    pass
+
 
 def get_file_item_order(item: 'File'):
     try:
@@ -101,7 +104,7 @@ def make_files_request(api: 'API', method, file, data: dict = None, binary: bool
         return cache_data
     if enforce_cache:
         # Checked cache and it wasn't there
-        return None
+        raise CacheMiss()
 
     response = api.session.request(
         method,
@@ -119,8 +122,7 @@ def make_files_request(api: 'API', method, file, data: dict = None, binary: bool
     if head and response.status_code in (302, 404, 200):
         response.close()  # We don't need the body for HEAD requests
         return response.status_code != 404
-
-    if head:
+    elif head:
         operation.use_response(response)
 
     if operation.first_chunk == b'{"message":"invalid hash"}\n':

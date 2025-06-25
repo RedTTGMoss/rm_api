@@ -40,6 +40,7 @@ def retry_on_version_bump(fn):
     The API should have already been updated to use the new sync version,
     so this is just a way to handle the case where the API version has changed and relay to retry the operation.
     """
+
     @wraps(fn)
     def wrapper(self, *args, **kwargs):
         try:
@@ -48,6 +49,7 @@ def retry_on_version_bump(fn):
             return fn(self, *args, **kwargs)
 
     return wrapper
+
 
 class API:
     document_collections: Dict[str, DocumentCollection]
@@ -125,32 +127,60 @@ class API:
         return self._hook_list
 
     @property
-    def latest_download_operation(self):
-        return self.download_operations[-1] if self.download_operations else None
+    def online_download_operations(self):
+        return [op for op in list(self.download_operations) if op.stage in (
+            DOWNLOAD_CONTENT,
+            GET_CONTENTS
+        )]
 
     def force_stop_all(self):
         for operation in list(self.download_operations):
-            self.cancel_download_operation(operation)
+            self.cancel_download_operation(operation, reason='force stop')
+
+    def add_download_operation(self, operation: DownloadOperation):
+        if not isinstance(operation, DownloadOperation):
+            raise TypeError("operation must be an instance of DownloadOperation")
+        self.download_operations.add(operation)
+
+    def remove_download_operation(self, operation: DownloadOperation):
+        if not isinstance(operation, DownloadOperation):
+            raise TypeError("operation must be an instance of DownloadOperation")
+        try:
+            self.download_operations.remove(operation)
+        except KeyError:
+            pass
 
     def begin_download_operation(self, operation: DownloadOperation):
-        self.download_operations.add(operation)
+        self.add_download_operation(operation)
         self.spread_event(operation.begin_event)
 
     def poll_download_operation(self, operation: DownloadOperation):
-        self.download_operations.add(operation)
+        self.add_download_operation(operation)
         self.spread_event(operation.poll_event)
 
     def finish_download_operation(self, operation: DownloadOperation):
-        try:
-            self.download_operations.remove(operation)
-            self.spread_event(operation.finish_event)
-        except ValueError:
-            pass
+        self.remove_download_operation(operation)
+        operation.finish()
+        self.spread_event(operation.finish_event)
 
-    def cancel_download_operation(self, operation: DownloadOperation):
-        self.download_operations.remove(operation)
-        operation.cancel()
+    def cancel_download_operation(self, operation: DownloadOperation, reason: str = 'canceled'):
+        self.remove_download_operation(operation)
+        operation.cancel(reason)
         self.spread_event(operation.cancel_event)
+
+    @property
+    def downloading(self):
+        if len(self.download_operations) == 0:
+            return False
+        return any(not op.finished for op in self.online_download_operations if not op.canceled)
+
+    @property
+    def download_done(self):
+        return sum(op.done for op in self.online_download_operations if not op.canceled)
+
+    @property
+    def download_total(self):
+        return sum(op.total for op in self.online_download_operations if not op.canceled)
 
     def reconnect(self):
         self.connected_to_notifications = False

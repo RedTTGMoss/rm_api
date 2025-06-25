@@ -15,11 +15,11 @@ from colorama import Fore
 
 from rm_api.defaults import RM_SCREEN_CENTER, RM_SCREEN_SIZE, ZoomModes, Orientations, DocumentTypes
 from rm_api.helpers import get_pdf_page_count, DownloadOperationsSupport
-from rm_api.notifications.models import APIFatal, DownloadOperation
+from rm_api.notifications.models import APIFatal, DownloadOperation, DocumentDownloadProgress
 from rm_api.storage.common import FileHandle
-from rm_api.storage.v3 import get_file_contents
+from rm_api.storage.v3 import get_file_contents, CacheMiss
 from rm_api.templates import BLANK_TEMPLATE
-from rm_api.sync_stages import DOWNLOAD_CONTENT
+from rm_api.sync_stages import DOWNLOAD_CONTENT, FETCH_FILE
 
 try:
     from rm_lines.rmscene.scene_stream import write_blocks
@@ -949,6 +949,7 @@ class Document(DownloadOperationsSupport):
         self.content_data = {}
         self.files_available: Dict[str, File] = self.check_files_availability()
         self.provision = False  # Used during sync to disable opening or exporting the file!!!
+        self.download_progress = DocumentDownloadProgress(self)
 
         if self.content.file_type not in self.KNOWN_FILE_TYPES and \
                 not self.content.file_type in self.unknown_file_types:
@@ -1004,15 +1005,25 @@ class Document(DownloadOperationsSupport):
             if callback is not None:
                 callback()
             return
-        for file in self.files:
-            if file.uuid not in self.content_files:
-                continue
+        operations: List[DownloadOperation] = []
+        files = [file for file in self.files if file.uuid in self.content_files]
+        for file in files:
+            operations.append(DownloadOperation(file.hash, DOWNLOAD_CONTENT, self))
+            operations[-1].total = file.size
+            self.add_download_operation(operations[-1])
+            self.api.add_download_operation(operations[-1])
+        for file, operation in zip(files, operations):
             try:
                 self.content_data[file.uuid] = get_file_contents(self.api, file.hash, binary=True,
-                                                                 stage=DOWNLOAD_CONTENT, update=self, ref=self)
+                                                                 stage=DOWNLOAD_CONTENT, operation=operation, auto_finish=False)
             except DownloadOperation.DownloadCancelException:
+                for _operation in operations:
+                    self.api.cancel_download_operation(_operation)
                 self.files_available = {}
                 return
+        for operation in operations:
+            if operation.done >= operation.total or operation.stage == FETCH_FILE:
+                self.api.finish_download_operation(operation)
         self.files_available = self.check_files_availability()
         self.check()
         if callback is not None:
@@ -1024,7 +1035,13 @@ class Document(DownloadOperationsSupport):
                 continue
             if file.uuid in self.content_data:
                 continue
-            data = get_file_contents(self.api, file.hash, binary=True, update=self, ref=self, enforce_cache=True)
+            try:
+                data = get_file_contents(self.api, file.hash, binary=True, update=self, ref=self, enforce_cache=True)
+            except CacheMiss:
+                self.files_available = self.check_files_availability()
+                self.check()
+                self._download_files(callback)
+                return
             if data:
                 self.content_data[file.uuid] = data
         if callback:
@@ -1042,7 +1059,10 @@ class Document(DownloadOperationsSupport):
         for file in self.files:
             if file.uuid not in self.content_files:
                 continue
-            data = get_file_contents(self.api, file.hash, binary=True, enforce_cache=True, update=self)
+            try:
+                data = get_file_contents(self.api, file.hash, binary=True, enforce_cache=True, update=self)
+            except CacheMiss:
+                raise
             if data:
                 self.content_data[file.uuid] = data
 

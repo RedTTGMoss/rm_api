@@ -98,6 +98,30 @@ class DocumentSyncProgress(SyncProgressBase):
         if self.file_sync_operation:
             self.file_sync_operation.done += 1
 
+class DocumentDownloadProgress(SyncProgressBase):
+    """
+    A sync progress event that automatically relays the download progress of a document.
+    """
+
+    # noinspection PyMissingConstructor
+    def __init__(self, document: 'Document'):
+        self.document = document
+
+    @property
+    def document_uuid(self):
+        return self.document.uuid
+
+    @property
+    def done(self):
+        return self.document.download_done
+
+    @property
+    def total(self):
+        return self.document.download_total
+
+    @property
+    def finished(self):
+        return not self.document.downloading
 
 class DownloadOperation(SyncProgressBase):
     raw_read: BytesIO
@@ -109,6 +133,7 @@ class DownloadOperation(SyncProgressBase):
                  update_ref: Any = None):
         super().__init__()
         self.canceled = False
+        self.cancel_reason = None
         self.ref = ref
         self.update_ref = update_ref
         self.stage = stage
@@ -117,8 +142,9 @@ class DownloadOperation(SyncProgressBase):
     def finish(self):
         self.finished = True
 
-    def cancel(self):
+    def cancel(self, reason: str = "No reason provided"):
         self.canceled = True
+        self.cancel_reason = reason
 
     def use_response(self, response: Response, head: bool = False):
         # Only grab the total size if it's a head request.
@@ -164,6 +190,10 @@ class DownloadOperation(SyncProgressBase):
         def __init__(self, operation):
             self.operation = operation
 
+        @property
+        def __dict__(self):
+            return self.operation.__dict__
+
     class DownloadCancelEvent(DownloadOperationEvent):
         ...
 
@@ -191,3 +221,15 @@ class DownloadOperation(SyncProgressBase):
     @property
     def finish_event(self):
         return self.DownloadFinishEvent(self)
+
+    @property
+    def __dict__(self):
+        return {
+            'ref': self.ref,
+            'stage': self.stage,
+            'done': self.done,
+            'total': self.total,
+            'finished': self.finished,
+            'canceled': self.canceled,
+            'cancel_reason': self.cancel_reason
+        }
