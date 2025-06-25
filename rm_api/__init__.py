@@ -14,6 +14,7 @@ from requests.adapters import HTTPAdapter
 from urllib3 import Retry
 
 from .auth import MissingTabletLink, get_token, refresh_token
+from .download_lock import DownloadLock
 from .models import DocumentCollection, Document, Metadata, Content, make_uuid, File, make_hash
 from .notifications import handle_notifications
 from .notifications.models import FileSyncProgress, SyncRefresh, DocumentSyncProgress, NewDocuments, APIFatal, \
@@ -83,6 +84,7 @@ class API:
         self.document_notifications_uri = None
         self._upload_lock = threading.Lock()
         self._hook_lock = threading.Lock()
+        self.download_lock = DownloadLock()
         self.sync_notifiers: int = 0
         self.download_operations = set()
         self._hook_list = {}  # Used for event hooks

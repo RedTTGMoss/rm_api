@@ -1,8 +1,10 @@
+import concurrent.futures
 import json
 import os.path
 import threading
 import time
 import uuid
+from concurrent.futures.thread import ThreadPoolExecutor
 from copy import copy, deepcopy
 from datetime import datetime
 from functools import lru_cache
@@ -10,8 +12,6 @@ from hashlib import sha256
 from io import BytesIO
 from itertools import zip_longest
 from typing import List, TYPE_CHECKING, Generic, T, Union, TypedDict, Dict, Optional, Tuple, Any
-
-from colorama import Fore
 
 from rm_api.defaults import RM_SCREEN_CENTER, RM_SCREEN_SIZE, ZoomModes, Orientations, DocumentTypes
 from rm_api.helpers import get_pdf_page_count, DownloadOperationsSupport
@@ -999,6 +999,20 @@ class Document(DownloadOperationsSupport):
     def available(self):
         return all(file in self.files_available.keys() for file in self.content_files)
 
+    def __download_file_task(self, file: File, operation: DownloadOperation, cancel_event: threading.Event):
+        """
+        Internal method to download a file with a cancel event.
+        This is used to ensure that the download can be cancelled.
+        """
+        try:
+            with self.api.download_lock(operation):
+                self.content_data[file.uuid] = get_file_contents(self.api, file.hash, binary=True,
+                                                                 stage=DOWNLOAD_CONTENT, operation=operation,
+                                                                 auto_finish=False)
+        except DownloadOperation.DownloadCancelException:
+            cancel_event.set()
+            raise
+
     # noinspection PyTypeChecker
     def _download_files(self, callback=None):
         if self.api.offline_mode:
@@ -1012,10 +1026,17 @@ class Document(DownloadOperationsSupport):
             operations[-1].total = file.size
             self.add_download_operation(operations[-1])
             self.api.add_download_operation(operations[-1])
-        for file, operation in zip(files, operations):
+        cancel_event = threading.Event()
+        with ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(self.__download_file_task, file, operation, cancel_event)
+                for file, operation in zip(files, operations)
+            ]
             try:
-                self.content_data[file.uuid] = get_file_contents(self.api, file.hash, binary=True,
-                                                                 stage=DOWNLOAD_CONTENT, operation=operation, auto_finish=False)
+                for future in concurrent.futures.as_completed(futures):
+                    if cancel_event.is_set():
+                        break
+                    future.result()
             except DownloadOperation.DownloadCancelException:
                 for _operation in operations:
                     self.api.cancel_download_operation(_operation)
