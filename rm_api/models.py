@@ -1019,7 +1019,7 @@ class Document(DownloadOperationsSupport):
 
     # noinspection PyTypeChecker
     def _download_files(self, callback=None, automatically_finish: bool = True):
-        if self.api.offline_mode:
+        if self.api.offline_mode or self.downloading:
             if callback is not None:
                 callback()
             return

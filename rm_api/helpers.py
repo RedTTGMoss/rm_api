@@ -10,7 +10,7 @@ from colorama import Fore
 
 from rm_api.notifications.models import DownloadOperation
 from rm_api.storage.common import FileHandle
-from rm_api.sync_stages import UNKNOWN_DOWNLOAD_OPERATION, FETCH_FILE
+from rm_api.sync_stages import UNKNOWN_DOWNLOAD_OPERATION, FETCH_FILE, DOWNLOAD_CONTENT, GET_CONTENTS
 
 if TYPE_CHECKING:
     from . import API, File
@@ -115,15 +115,22 @@ class DownloadOperationsSupport:
         self._download_operations.remove(operation)
 
     @property
+    def online_download_operations(self):
+        return [op for op in list(self._download_operations) if op.stage in (
+            DOWNLOAD_CONTENT,
+            GET_CONTENTS
+        )]
+
+    @property
     def downloading(self):
         if len(self._download_operations) == 0:
             return False
-        return any(not op.finished for op in list(self._download_operations) if not op.canceled and op.done < op.total)
+        return any(not op.finished for op in self.online_download_operations if not op.canceled and op.done < op.total)
 
     @property
     def download_done(self):
-        return sum(op.done for op in list(self._download_operations) if not op.canceled)
+        return sum(op.done for op in self.online_download_operations if not op.canceled)
 
     @property
     def download_total(self):
-        return sum(op.total for op in list(self._download_operations) if not op.canceled)
+        return sum(op.total for op in self.online_download_operations if not op.canceled)
