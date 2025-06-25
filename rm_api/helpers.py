@@ -64,11 +64,12 @@ def download_operation_wrapper(fn):
             getattr(update, 'add_download_operation')(operation)
         kwargs['operation'] = operation
         try:
+            if operation.canceled:
+                raise operation.DownloadCancelException()
             data = fn(api, *args, **kwargs)
         except DownloadOperation.DownloadCancelException:
             if update:
                 getattr(update, 'remove_download_operation')(operation)
-            api.log(f'DOWNLOAD CANCELLED\n{Fore.LIGHTBLACK_EX}{format_exc()}{Fore.RESET}')
             raise
         except:
             api.cancel_download_operation(operation)
