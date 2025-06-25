@@ -14,7 +14,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from rm_api.notifications.models import DownloadOperation
 
-MAX_LOCK_TOTAL = 10000000  # 10MB
+MAX_LOCK_TOTAL = 100000000  # 100MB
+LOCK_MIN_PASSTHROUGH = 10000000  # 10MB, minimum size to pass through the lock without waiting
 
 class DownloadLockRequest:
     def __init__(self, lock: 'DownloadLock', download_operation: 'DownloadOperation'):
@@ -24,14 +25,18 @@ class DownloadLockRequest:
 
     def __enter__(self):
         with self.lock.condition:
-            while self.lock.total >= MAX_LOCK_TOTAL:
+            while self.lock.total >= MAX_LOCK_TOTAL and self.total < LOCK_MIN_PASSTHROUGH:
                 self.lock.condition.wait()
-            self.lock.total += self.total
+                if self.lock.stopped or self.operation.canceled:
+                    raise self.operation.DownloadCancelException
+            if self.total >= LOCK_MIN_PASSTHROUGH:
+                self.lock.total += self.total
             return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         with self.lock.condition:
-            self.lock.total -= self.total
+            if self.total >= LOCK_MIN_PASSTHROUGH:
+                self.lock.total -= self.total
             self.lock.condition.notify_all()
         return False
 
@@ -40,6 +45,12 @@ class DownloadLock:
     def __init__(self):
         self.total = 0
         self.condition = threading.Condition()
+        self.stopped = False
+
+    def stop(self):
+        with self.condition:
+            self.stopped = True
+            self.condition.notify_all()
 
     def __call__(self, download_operation: 'DownloadOperation') -> DownloadLockRequest:
         return DownloadLockRequest(self, download_operation)

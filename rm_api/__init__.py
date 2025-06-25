@@ -138,6 +138,7 @@ class API:
     def force_stop_all(self):
         for operation in list(self.download_operations):
             self.cancel_download_operation(operation, reason='force stop')
+        self.download_lock.stop()
 
     def add_download_operation(self, operation: DownloadOperation):
         if not isinstance(operation, DownloadOperation):

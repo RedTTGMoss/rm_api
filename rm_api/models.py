@@ -19,7 +19,7 @@ from rm_api.notifications.models import APIFatal, DownloadOperation, DocumentDow
 from rm_api.storage.common import FileHandle
 from rm_api.storage.v3 import get_file_contents, CacheMiss
 from rm_api.templates import BLANK_TEMPLATE
-from rm_api.sync_stages import DOWNLOAD_CONTENT, FETCH_FILE
+from rm_api.sync_stages import DOWNLOAD_CONTENT, FETCH_FILE, MISSING_CONTENT
 
 try:
     from rm_lines.rmscene.scene_stream import write_blocks
@@ -1012,6 +1012,10 @@ class Document(DownloadOperationsSupport):
         except DownloadOperation.DownloadCancelException:
             cancel_event.set()
             raise
+        except Exception:
+            if operation.stage == MISSING_CONTENT:
+                cancel_event.set()
+            raise
 
     # noinspection PyTypeChecker
     def _download_files(self, callback=None):
@@ -1027,7 +1031,7 @@ class Document(DownloadOperationsSupport):
             self.add_download_operation(operations[-1])
             self.api.add_download_operation(operations[-1])
         cancel_event = threading.Event()
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=10) as executor:
             futures = [
                 executor.submit(self.__download_file_task, file, operation, cancel_event)
                 for file, operation in zip(files, operations)
