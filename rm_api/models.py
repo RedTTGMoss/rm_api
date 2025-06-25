@@ -1018,7 +1018,7 @@ class Document(DownloadOperationsSupport):
             raise
 
     # noinspection PyTypeChecker
-    def _download_files(self, callback=None):
+    def _download_files(self, callback=None, automatically_finish: bool = True):
         if self.api.offline_mode:
             if callback is not None:
                 callback()
@@ -1046,13 +1046,19 @@ class Document(DownloadOperationsSupport):
                     self.api.cancel_download_operation(_operation)
                 self.files_available = {}
                 return
-        for operation in operations:
-            if operation.done >= operation.total or operation.stage == FETCH_FILE:
-                self.api.finish_download_operation(operation)
+        if automatically_finish:
+            threading.Thread(target=self._handle_finishing_download_operations, args=(operations,)).start()
         self.files_available = self.check_files_availability()
         self.check()
         if callback is not None:
             callback()
+
+    def _handle_finishing_download_operations(self, operations: List[DownloadOperation]):
+        with self.api.download_lock.task_condition:
+            while self.api.download_lock.tasks > 0:
+                self.api.download_lock.task_condition.wait()
+            for operation in operations:
+                self.api.finish_download_operation(operation)
 
     def _load_files(self, callback=None):
         for file in self.files:
@@ -1091,9 +1097,9 @@ class Document(DownloadOperationsSupport):
             if data:
                 self.content_data[file.uuid] = data
 
-    def ensure_download_and_callback(self, callback):
+    def ensure_download_and_callback(self, callback=None, automatically_finish: bool = True):
         if not self.available:
-            threading.Thread(target=self._download_files, args=(callback,)).start()
+            threading.Thread(target=self._download_files, args=(callback, automatically_finish)).start()
         else:
             threading.Thread(target=self._load_files, args=(callback,)).start()
 

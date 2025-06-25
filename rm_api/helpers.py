@@ -118,7 +118,7 @@ class DownloadOperationsSupport:
     def downloading(self):
         if len(self._download_operations) == 0:
             return False
-        return any(not op.finished for op in list(self._download_operations) if not op.canceled)
+        return any(not op.finished for op in list(self._download_operations) if not op.canceled and op.done < op.total)
 
     @property
     def download_done(self):

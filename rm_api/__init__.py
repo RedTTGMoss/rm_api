@@ -11,7 +11,7 @@ from typing import Dict, List, Union
 import colorama
 import requests
 from requests.adapters import HTTPAdapter
-from urllib3 import Retry
+from urllib3 import Retry, PoolManager
 
 from .auth import MissingTabletLink, get_token, refresh_token
 from .download_lock import DownloadLock
@@ -63,7 +63,7 @@ class API:
             backoff_factor=2,
             status_forcelist=(429, 503)
         )
-        http_adapter = HTTPAdapter(max_retries=self.retry_strategy)
+        http_adapter = HTTPAdapter(max_retries=self.retry_strategy, pool_maxsize=35, pool_block=True)
         self.session = requests.Session()
         self.session.mount("http://", http_adapter)
         self.session.mount("https://", http_adapter)
@@ -84,7 +84,7 @@ class API:
         self.document_notifications_uri = None
         self._upload_lock = threading.Lock()
         self._hook_lock = threading.Lock()
-        self.download_lock = DownloadLock()
+        self.download_lock = DownloadLock(self)
         self.sync_notifiers: int = 0
         self.download_operations = set()
         self._hook_list = {}  # Used for event hooks
