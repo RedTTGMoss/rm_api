@@ -172,3 +172,5 @@ cython_debug/
 /poetry.lock
 /sync/
 /token
+/live_tests/token
+/live_tests/sync/

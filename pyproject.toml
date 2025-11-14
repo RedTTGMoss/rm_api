@@ -33,6 +33,7 @@ pyjwt = ">=2.9.0,<2.10.0"
 packaging = ">=24.2,<25.0"
 colorama = "^0.4.6"
 pytest = "^8.3.5"
+slashr = "^1.0.0"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
