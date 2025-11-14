@@ -105,7 +105,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
-          name: rMLines python release ${{ github.ref_name }}
+          name: rMAPI python release ${{ github.ref_name }}
           draft: true
           files: artifacts/**/*
 
