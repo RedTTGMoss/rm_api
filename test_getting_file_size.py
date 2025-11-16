@@ -1,7 +1,6 @@
 import time
 
 from slashr import SlashR
-import humanize
 from rm_api import API, make_files_request, DownloadOperation, check_file_exists, get_file_contents
 from rm_api.notifications.models import Notification, LongLasting
 from rm_api.storage.exceptions import NewSyncRequired
@@ -16,7 +15,11 @@ with SlashR(False) as sr:
 root = api.get_root()['hash']
 
 def normal(size: int) -> str:
-    return humanize.naturalsize(size, binary=True)
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size < 1000:
+            return f"{size:.2f} {unit}"
+        size /= 1000
+    return f"{size:.2f} PB"
 
 
 def debug_hook(event: Notification | LongLasting):
