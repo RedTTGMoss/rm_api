@@ -1,17 +1,21 @@
+import _thread
 import asyncio
 import base64
 import json
 import os
+import pickle
 import ssl
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from hashlib import sha256
+from io import BytesIO
 from json import JSONDecodeError
 from traceback import format_exc, print_exc
 from typing import TYPE_CHECKING, Union, Tuple, List, Set
 
 import aiohttp
 import certifi
+import dill
 from aiohttp import ClientTimeout
 from colorama import Fore, Style
 from crc32c import crc32c
@@ -32,7 +36,7 @@ ssl_context = ssl.create_default_context(cafile=certifi.where() if os.name == 'd
 
 if TYPE_CHECKING:
     from rm_api import API
-    from rm_api.models import File
+    from rm_api.models import File, Document
 
 DEFAULT_ENCODING = 'utf-8'
 EXTENSION_ORDER = ['content', 'metadata', 'rm']
@@ -43,6 +47,23 @@ EXTENSION_ORDER = ['content', 'metadata', 'rm']
 
 class CacheMiss(Exception):
     pass
+
+
+def pickle_document(doc: Union['models.Document', 'models.DocumentCollection']):
+    if isinstance(doc, models.DocumentCollection):
+        return dill.dumps(doc, fix_imports=True)
+    api = doc.api
+    doc.api = None
+    data = pickle.dumps(doc, fix_imports=True)
+    doc.api = api
+    return data
+
+
+def unpickle_document(data: bytes, api: 'API') -> Union['models.Document', 'models.DocumentCollection']:
+    doc = pickle.loads(data, fix_imports=True)
+    if isinstance(doc, models.Document):
+        doc.api = api
+    return doc
 
 
 def get_file_item_order(item: 'File'):
@@ -78,12 +99,8 @@ def make_files_request(api: 'API', method, file, data: dict = None, binary: bool
         head = True
     else:
         head = False
-    if api.sync_file_path:
-        location = os.path.join(api.sync_file_path, file)
-    else:
-        location = None
-    if use_cache and location and os.path.exists(location):
-        operation.total = os.path.getsize(location)
+    if use_cache and api.indexer.hash_exists(file):
+        operation.total = api.indexer.get_size(file)
         if head:
             operation.stage = FETCH_CACHE
             api.poll_download_operation(operation)
@@ -91,11 +108,9 @@ def make_files_request(api: 'API', method, file, data: dict = None, binary: bool
         operation.stage = LOAD_CONTENT
         api.begin_download_operation(operation)
         if binary:
-            with open(location, 'rb') as f:
-                cache_data = f.read()
+            cache_data = api.indexer.read_bytes(file)
         else:
-            with open(location, 'r', encoding=DEFAULT_ENCODING) as f:
-                data = f.read()
+            data = api.indexer.read_string(file)
             try:
                 cache_data = json.loads(data)
             except JSONDecodeError:
@@ -134,15 +149,15 @@ def make_files_request(api: 'API', method, file, data: dict = None, binary: bool
         operation.stage = MISSING_CONTENT
         raise Exception(f"Failed to make files request - {response.status_code}\n{response.text}")
 
-    if location:
+    if api.indexer.allow_write:
         try:
-            with open(location, "wb") as f:
+            with api.indexer.open_writer(file) as f:
                 f.write(operation.first_chunk)
                 for chunk in operation.iter():
                     f.write(chunk)
         except DownloadOperation.DownloadCancelException as e:
-            if os.path.exists(location):
-                os.remove(location)
+            if api.indexer.hash_exists(file):
+                api.indexer.erase(file)
             raise e
 
     if binary:
@@ -337,9 +352,82 @@ def process_file_content(
         api: 'API',
         matches_hash: bool
 ):
+    """This function handles entirely parsing a document or collection from its file list."""
+
+    # Because metadata and content files take time to parse, we check if we have a pickle cache first
+    pickle_hash = f'{file.hash}.pickle'
+    pickle_uuid_hash = f'{file.uuid}.pickle'
+    require_update_cache = True
+    if api.indexer.hash_exists(pickle_uuid_hash):
+        # We have an old pickle cache, we need to remove it
+        old_pickle_hash = api.indexer.read_string(pickle_uuid_hash)
+        if api.indexer.hash_exists(old_pickle_hash) and old_pickle_hash != pickle_hash:
+            api.indexer.erase(old_pickle_hash)
+        else:
+            require_update_cache = False
+
+    def handle_document(doc):
+        # We create and register the document
+        # We also parse full document contents here into a Content object
+        api.documents[file.uuid] = doc
+
+        # Save to pickle cache for faster loading next time
+        if require_update_cache:
+            api.indexer.write_bytes(pickle_hash, pickle_document(api.documents[file.uuid]))
+            api.indexer.write_string(pickle_uuid_hash, pickle_hash)
+
+        # If the hash doesn't match, we add it to the list for fixing later
+        if not matches_hash:
+            badly_hashed.append(api.documents[file.uuid])
+
+        # Mark the parent collection as having items since it does
+        if (parent_document_collection := api.document_collections.get(
+                api.documents[file.uuid].parent)) is not None:
+            parent_document_collection.has_items = True
+        document_collections_with_items.add(api.documents[file.uuid].parent)
+
+        # Unmark it from the deleted list if it exists
+        if file.uuid in deleted_documents_list:
+            deleted_documents_list.remove(file.uuid)
+
+    def handle_document_collection(doc_collection):
+        # We create and register the document collection
+        api.document_collections[file.uuid] = doc_collection
+
+        # Save to pickle cache for faster loading next time
+        if require_update_cache:
+            api.indexer.write_bytes(pickle_hash, pickle.dumps(api.document_collections[file.uuid]))
+            api.indexer.write_string(pickle_uuid_hash, pickle_hash)
+
+        # Mark that this collection has items if applicable
+        if file.uuid in document_collections_with_items:
+            api.document_collections[file.uuid].has_items = True
+
+        # Mark the parent collection as having items since it does
+        if (parent_document_collection := api.document_collections.get(
+                api.document_collections[file.uuid].parent)) is not None:
+            parent_document_collection.has_items = True
+        document_collections_with_items.add(api.document_collections[file.uuid].parent)
+
+        # Unmark it from the deleted list if it exists
+        if file.uuid in deleted_document_collections_list:
+            deleted_document_collections_list.remove(file.uuid)
+
+
+    # Check for pickle cache first
+    if api.indexer.hash_exists(pickle_hash):
+        data = api.indexer.read_bytes(pickle_hash)
+        obj = unpickle_document(data, api)
+        if isinstance(obj, models.DocumentCollection):
+            handle_document_collection(obj)
+        elif isinstance(obj, models.Document):
+            handle_document(obj)
+        return  # We loaded from cache, no need to continue processing
+
     content = None
 
     for item in file_content:
+        # If we match the content file, we just store it for later
         if item.uuid == f'{file.uuid}.content':
             try:
                 content = get_file_contents(api, item.hash)
@@ -348,70 +436,83 @@ def process_file_content(
             if not isinstance(content, dict):
                 break
         if item.uuid == f'{file.uuid}.metadata':
+            #
+            # Document/Collection here is already confirmed, run checks on existing items
+            #
+            # First we check if the file matches an existing document collection
             if (old_document_collection := api.document_collections.get(file.uuid)) is not None:
                 if api.document_collections[file.uuid].metadata.hash == item.hash:
+                    # We check and remove the item from the deleted list if it exists
                     if file.uuid in deleted_document_collections_list:
                         deleted_document_collections_list.remove(file.uuid)
+
+                    # We also reset has_items if it doesn't have items
                     if old_document_collection.uuid not in document_collections_with_items:
                         old_document_collection.has_items = False
+
+                    # Finally, we mark the parent collection as having items since it does
                     if (parent_document_collection := api.document_collections.get(
                             old_document_collection.parent)) is not None:
                         parent_document_collection.has_items = True
                         document_collections_with_items.add(old_document_collection.parent)
+
+                    # This document collection is already present and up to date, skip processing
                     continue
+            # Next we check if the file matches an existing document
             elif (old_document := api.documents.get(file.uuid)) is not None:
                 if api.documents[file.uuid].metadata.hash == item.hash:
+                    # We check and remove the item from the deleted list if it exists
                     if file.uuid in deleted_documents_list:
                         deleted_documents_list.remove(file.uuid)
+                    # Finally, we mark the parent collection as having items since it does
                     if (parent_document_collection := api.document_collections.get(
                             old_document.parent)) is not None:
                         parent_document_collection.has_items = True
                     document_collections_with_items.add(old_document.parent)
                     continue
+
+            #
+            # Begin processing the metadata file
+            #
+
             try:
+                # We finally process the raw metadata into a Metadata object
                 metadata = models.Metadata(get_file_contents(api, item.hash), item.hash)
             except:
+                # If there's an error processing the metadata, we can just skip it, it's no use
                 continue
             if metadata.type == DocumentTypes.Collection.value:
+                # Extract tags if present, collections only contain tags in their content file
                 if content is not None:
                     tags = content.get('tags', ())
                 else:
                     tags = ()
-                api.document_collections[file.uuid] = models.DocumentCollection(
+
+                # We create and register the document collection
+                doc = models.DocumentCollection(
                     [models.Tag(tag) for tag in tags],
                     metadata, file.uuid
                 )
 
-                if file.uuid in document_collections_with_items:
-                    api.document_collections[file.uuid].has_items = True
+                handle_document_collection(doc)
+                break  # Finish processing this file, there is no need to continue
+            elif metadata.type == DocumentTypes.Document.value:
+                # We create and register the document
+                # We also parse full document contents here into a Content object
+                doc = models.Document(api,
+                                      models.Content(content, metadata, item.hash, api.debug),
+                                      metadata, file_content, file.uuid, file.hash)
+                handle_document(doc)
+                break  # Finish processing this file, there is no need to continue
 
-                if (parent_document_collection := api.document_collections.get(
-                        api.document_collections[file.uuid].parent)) is not None:
-                    parent_document_collection.has_items = True
-                document_collections_with_items.add(api.document_collections[file.uuid].parent)
-
-                if file.uuid in deleted_document_collections_list:
-                    deleted_document_collections_list.remove(file.uuid)
-                break
-            elif metadata.type == 'DocumentType':
-                api.documents[file.uuid] = models.Document(api,
-                                                           models.Content(content, metadata, item.hash, api.debug),
-                                                           metadata, file_content, file.uuid, file.hash)
-                if not matches_hash:
-                    badly_hashed.append(api.documents[file.uuid])
-                if (parent_document_collection := api.document_collections.get(
-                        api.documents[file.uuid].parent)) is not None:
-                    parent_document_collection.has_items = True
-                document_collections_with_items.add(api.documents[file.uuid].parent)
-                if file.uuid in deleted_documents_list:
-                    deleted_documents_list.remove(file.uuid)
-                break
+        # Any other files here can be skipped, they aren't relevant
 
 
 def get_documents_using_root(api: 'API', progress, root):
     progress(0, 1)
+    # This initial part is entirely delegated to handling the root file and any issues
     try:
-        if root == 'miss':
+        if root == 'miss':  # Missing root file
             print(
                 f"{Fore.GREEN}{Style.BRIGHT}"
                 f"Creating new root file."
@@ -420,39 +521,50 @@ def get_documents_using_root(api: 'API', progress, root):
             api.reset_root()
             root = api.get_root().get('hash', 'miss')
             return get_documents_using_root(api, progress, root)
-        _, files = get_file(api, root)
-        if _ == -1 or len(files) == 0:  # Blank root file / Missing
-            if api.offline_mode and _ == -1:
+        version, files = get_file(api, root)  # Fetch the root file
+        if version == -1 or len(files) == 0:  # Blank root file / Missing
+            if api.offline_mode and version == -1:  # Offline and can't get root
                 api.spread_event(APIFatal())
+                progress(0, 0)
                 print(
                     f"{Fore.RED}{Style.BRIGHT}"
                     f"API is in offline mode, please sync at least once"
                     f"{Fore.RESET}{Style.RESET_ALL}"
                 )
                 return
-            _, files = get_file(api, root, False)
-    except DownloadOperation.DownloadCancelException:
+            version, files = get_file(api, root, False)  # Force refetch
+    except DownloadOperation.DownloadCancelException:  # Cancelled by user
+        progress(0, 0)
         return
     except AssertionError as e:
+        progress(0, 0)
         raise e  # Allow AssertionError passthrough
     except:  # Any network or read issue
         print_exc()
-        from rm_api.storage.old_sync import update_root
+        api.spread_event(APIFatal())
+        progress(0, 0)
         print(f"{Fore.RED}{Style.BRIGHT}AN ISSUE OCCURRED GETTING YOUR ROOT INDEX!{Fore.RESET}{Style.RESET_ALL}")
+        return
 
-        api.reset_root()
+    # We make a list of all the documents and collections we have
+    # These dictionaries store any file that might be deleted
+    # If these items remain in the lists at the end of processing, they are deleted from the api
+    # If the files still exist, then they are removed from these lists to avoid deletion
     deleted_document_collections_list = set(api.document_collections.keys())
     deleted_documents_list = set(api.documents.keys())
+
+    # We also keep track of collections with items, so we can mark them correctly
     document_collections_with_items = set()
     badly_hashed = []
 
+    # We mark the progress of the fetch
     total = len(files)
     count = 0
     progress(0, total)
 
-    def handle_file(file: 'File'):
+    def handle_file(file: 'File'):  # This refers to one file from the root
         nonlocal count, total
-        _, file_content = get_file(api, file.hash)
+        _, file_content = get_file(api, file.hash)  # Get the file content listing
 
         # Check the hash in case it needs fixing
         document_file_hash = sha256()
@@ -461,18 +573,22 @@ def get_documents_using_root(api: 'API', progress, root):
         expected_hash = document_file_hash.hexdigest()
         matches_hash = file.hash == expected_hash
 
+        # Process the document/collection
         process_file_content(file_content, file, deleted_document_collections_list, deleted_documents_list,
                              document_collections_with_items, badly_hashed, api, matches_hash)
         count += 1
 
-        progress(count, total)
+        progress(count, total)  # The file is finished and we report progress
 
     def handle_file_and_check_for_errors(file: 'File'):
+        # This is a wrapper function to catch potentially corrupted files or code errors,
+        # without halting the entire sync process
         try:
             handle_file(file)
         except:
             print_exc()
 
+    # Run a threading pool to handle files in parallel
     try:
         # with ThreadPoolExecutor(max_workers=100) as executor:
         #     executor.map(handle_file_and_check_for_errors if api.debug else handle_file, files)
@@ -483,24 +599,37 @@ def get_documents_using_root(api: 'API', progress, root):
                 executor.map(handle_file_and_check_for_errors if api.debug else handle_file, batch)
     except RuntimeError:
         return
-    i = 0
 
+    # Here we use the api to reupload any badly hashed documents
+    # This process goes through rm_api's normal upload process to ensure everything is correct
+    # This includes recalculating hashes and reuploading files and updating the root
+    # It's important to note that this isn't important and resyncing isn't necessary here
     if badly_hashed:
         print(f"{Fore.YELLOW}Warning, fixing some bad document tree hashes!{Fore.RESET}")
         api.upload_many_documents(badly_hashed)
 
+    # We add additional set of steps for deleting any documents or collections that are no longer present
     total += len(deleted_document_collections_list) + len(deleted_documents_list)
 
-    for j, uuid in enumerate(deleted_document_collections_list):
-        del api.document_collections[uuid]
-        progress(i + j + 1, total)
-    else:
-        j = 0
+    # Finally we go through and delete any remaining items in the deleted lists
+    for _, uuid in enumerate(deleted_document_collections_list):
+        try:
+            del api.document_collections[uuid]
+        except KeyError:
+            pass
+        count += 1
+        progress(count, total)
 
-    for k, uuid in enumerate(deleted_documents_list):
+    for _, uuid in enumerate(deleted_documents_list):
         try:
             if not api.documents[uuid].provision:
                 del api.documents[uuid]
         except KeyError:
             pass
-        progress(i + j + k + 1, total)
+        count += 1
+        progress(count, total)
+
+    # We fetched / fixed / reloaded the root file
+    # We parsed through each file, creating documents and collections as necessary
+    # We deleted any documents or collections that were no longer present
+    # Finally if everything went well, the progress has already reached 100%

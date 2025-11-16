@@ -13,6 +13,8 @@ from io import BytesIO
 from itertools import zip_longest
 from typing import List, TYPE_CHECKING, Generic, T, Union, TypedDict, Dict, Optional, Tuple, Any
 
+from colorama import Fore
+
 from rm_api.defaults import RM_SCREEN_CENTER, RM_SCREEN_SIZE, ZoomModes, Orientations, DocumentTypes
 from rm_api.helpers import get_pdf_page_count, DownloadOperationsSupport
 from rm_api.notifications.models import APIFatal, DownloadOperation, DocumentDownloadProgress
@@ -143,6 +145,7 @@ class File:
         return self.from_line(self.to_line())
 
 
+# noinspection PyTypeHints
 class TimestampedValue(Generic[T]):
     def __init__(self, value: dict):
         self.value: T = value['value']
@@ -162,7 +165,7 @@ class TimestampedValue(Generic[T]):
         return cls(dictionary)
 
     @property
-    def __dict__(self):
+    def dict_repr(self):
         return self.to_dict()
 
 
@@ -255,18 +258,18 @@ class Page:
         return result
 
     @property
-    def __dict__(self):
+    def dict_repr(self):
         result = {
             'id': self.id,
-            'index': self.index.__dict__,
-            'template': self.template.__dict__,
+            'index': self.index.dict_repr,
+            'template': self.template.dict_repr,
         }
         if self.redirect:
-            result['redirect'] = self.redirect.__dict__
+            result['redirect'] = self.redirect.dict_repr
         if self.scroll_time:
-            result['scroll_time'] = self.scroll_time.__dict__
+            result['scroll_time'] = self.scroll_time.dict_repr
         if self.vertical_scroll:
-            result['vertical_scroll'] = self.vertical_scroll.__dict__
+            result['vertical_scroll'] = self.vertical_scroll.dict_repr
         return result
 
 
@@ -311,11 +314,11 @@ class CPages:
         }
 
     @property
-    def __dict__(self):
+    def dict_repr(self):
         return {
-            'pages': [page.__dict__ for page in self.pages],
-            'original': self.original.__dict__,
-            'last_opened': self.last_opened.__dict__,
+            'pages': [page.dict_repr for page in self.pages],
+            'original': self.original.dict_repr,
+            'last_opened': self.last_opened.dict_repr,
             'uuids': self.uuids,
         }
 
@@ -357,7 +360,7 @@ class Zoom:
         }
 
     @property
-    def __dict__(self):
+    def dict_repr(self):
         return self.to_dict()
 
 
@@ -579,15 +582,15 @@ class Content:
         }
 
     @property
-    def __dict__(self):
+    def dict_repr(self):
         return {
             'hash': self.hash,
-            'c_pages': self.c_pages.__dict__,
+            'c_pages': self.c_pages.dict_repr,
             'cover_page_number': self.cover_page_number,
             'file_type': self.file_type,
             'version': self.version,
             'usable': self.usable,
-            'zoom': self.zoom.__dict__,
+            'zoom': self.zoom.dict_repr,
             'orientation': self.orientation,
             'tags': [tag.__dict__ for tag in self.tags],
             'size_in_bytes': self.size_in_bytes,
@@ -745,7 +748,7 @@ class Metadata:
         }
 
     @property
-    def __dict__(self):
+    def dict_repr(self):
         return {
             "created_time": self.created_time,
             "hash": self.hash,
@@ -898,10 +901,10 @@ class DocumentCollection:
         return self.__copy(self, shallow=False)
 
     @property
-    def __dict__(self):
+    def dict_repr(self):
         return {
             'uuid': self.uuid,
-            'metadata': self.metadata.__dict__,
+            'metadata': self.metadata.dict_repr,
             'tags': [tag.__dict__ for tag in self.tags],
             'has_items': self.has_items
         }
@@ -949,7 +952,6 @@ class Document(DownloadOperationsSupport):
         self.content_data = {}
         self.files_available: Dict[str, File] = self.check_files_availability()
         self.provision = False  # Used during sync to disable opening or exporting the file!!!
-        self.download_progress = DocumentDownloadProgress(self)
 
         if self.content.file_type not in self.KNOWN_FILE_TYPES and \
                 not self.content.file_type in self.unknown_file_types:
@@ -958,6 +960,10 @@ class Document(DownloadOperationsSupport):
 
         if check:
             self.check()
+
+    @property
+    def download_progress(self):
+        return DocumentDownloadProgress(self)
 
     @property
     def uuid(self):
@@ -1278,12 +1284,12 @@ class Document(DownloadOperationsSupport):
         return self.__copy(self, shallow=False)
 
     @property
-    def __dict__(self):
+    def dict_repr(self):
         return {
             'uuid': self.uuid,
             'server_hash': self.server_hash,
-            'content': self.content.__dict__,
-            'metadata': self.metadata.__dict__,
+            'content': self.content.dict_repr,
+            'metadata': self.metadata.dict_repr,
             'files_available': list(self.files_available.keys()),
             'files': [file.__dict__ for file in self.files],
             'downloading': self.downloading,

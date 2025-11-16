@@ -19,6 +19,8 @@ from .models import DocumentCollection, Document, Metadata, Content, make_uuid, 
 from .notifications import handle_notifications
 from .notifications.models import FileSyncProgress, SyncRefresh, DocumentSyncProgress, NewDocuments, APIFatal, \
     DownloadOperation
+from .object_indexing.file_based_indexing import FileObjectIndexer
+from .object_indexing.db_based_indexing import DBObjectIndexer
 from .storage.common import get_document_storage_uri, get_document_notifications_uri
 from .storage.exceptions import NewSyncRequired
 from .storage.new_sync import get_documents_new_sync, handle_new_api_steps
@@ -57,7 +59,7 @@ class API:
     documents: Dict[str, Document]
 
     def __init__(self, require_token: bool = True, token_file_path: str = 'token', sync_file_path: str = 'sync',
-                 uri: str = None, discovery_uri: str = None, author_id: str = None, log_file='rm_api.log'):
+                 uri: str = None, discovery_uri: str = None, author_id: str = None, log_file='rm_api.log', ask_reset: bool = False):
         self.retry_strategy = Retry(
             total=10,
             backoff_factor=2,
@@ -74,7 +76,7 @@ class API:
         else:
             self.author_id = author_id
         self.uri = uri or os.environ.get("URI", DEFAULT_REMARKABLE_URI)
-        self.discovery_uri = discovery_uri or os.environ.get("DISCOVERY_URI", DEFAULT_REMARKABLE_DISCOVERY_URI)
+        self.discovery_uri = discovery_uri or os.environ.get("DISCOVERY_URI", DEFAULT_REMARKABLE_DISCOVERY_URI) or DEFAULT_REMARKABLE_DISCOVERY_URI
         self.sync_file_path = sync_file_path
         if self.sync_file_path is not None:
             os.makedirs(self.sync_file_path, exist_ok=True)
@@ -95,9 +97,11 @@ class API:
         self.documents = {}
         self._token = None
         self.debug = False
+        self.ask_reset = ask_reset
         self.ignore_error_protection = False
         self.connected_to_notifications = False
         self.require_token = require_token
+        self.indexer = FileObjectIndexer(self)
         if not self.uri.endswith("/"):
             self.uri += "/"
         if not self.discovery_uri.endswith("/"):
@@ -559,7 +563,17 @@ class API:
                 print(*args)
             logging.info(' '.join(map(str, args)))
 
+    def reset_confirm_func(self):
+        if self.ask_reset:
+            answer = input("Resetting the root will remove all documents from your account. Are you sure? (y/N): ")[0].lower()
+            if answer != 'y':
+                print("Aborting root reset.")
+                return False
+        return True
+
     def reset_root(self):
+        if self.ask_reset and not self.reset_confirm_func():
+            return
         root = self.get_root()
 
         new_root = {

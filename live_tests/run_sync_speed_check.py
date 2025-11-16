@@ -11,17 +11,21 @@ from rm_api.storage.v3 import poll_file, check_file_exists
 
 print(rm_api.__file__)
 
-api = API()
+api = API(ask_reset=True)
+api.debug = True
 
 _ = api.token
+
 
 def get_documents(d):
     def progress(done, total):
         d['done'] = done
         d['total'] = total
+
     start = time.time()
     api.get_documents(progress)
-    print(f"Fetching documents took {time.time()-start} seconds")
+    print(f"Fetching documents took {time.time() - start} seconds")
+
 
 def measure(msg):
     with SlashR(False) as sr:
@@ -35,13 +39,18 @@ def measure(msg):
             time.sleep(0.1)
         sr.print(f"Downloaded {d['done']} / {d['total']}")
 
+
 if len(os.listdir(api.sync_file_path)) > 0:
     shutil.rmtree(api.sync_file_path)
     mkdir(api.sync_file_path)
 
-measure("Now cold downloading")
+measure("Now cold downloading ( This is a networking operation )")
+api.indexer.log_and_reset_stats()
 measure("Now live downloading")
-api = API()
+api.indexer.log_and_reset_stats()
+api = API(ask_reset=True)
+api.debug = True
 poll_file.cache_clear()
 check_file_exists.cache_clear()
 measure("Now hot downloading")
+api.indexer.log_and_reset_stats()
