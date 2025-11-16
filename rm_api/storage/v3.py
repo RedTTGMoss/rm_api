@@ -52,10 +52,16 @@ class CacheMiss(Exception):
 def pickle_document(doc: Union['models.Document', 'models.DocumentCollection']):
     if isinstance(doc, models.DocumentCollection):
         return dill.dumps(doc, fix_imports=True)
+    # Strip unnecessary data before pickling
     api = doc.api
+    content_data = doc.content_data
+
     doc.api = None
+    doc.content_data = {}
+
     data = pickle.dumps(doc, fix_imports=True)
     doc.api = api
+    doc.content_data = content_data
     return data
 
 
