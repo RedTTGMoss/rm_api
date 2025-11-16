@@ -46,11 +46,11 @@ if len(os.listdir(api.sync_file_path)) > 0:
 
 measure("Now cold downloading ( This is a networking operation )")
 api.indexer.log_and_reset_stats()
-measure("Now live downloading")
+measure("Now live loading")
 api.indexer.log_and_reset_stats()
 api = API(ask_reset=True)
 api.debug = True
 poll_file.cache_clear()
 check_file_exists.cache_clear()
-measure("Now hot downloading")
+measure("Now hot loading")
 api.indexer.log_and_reset_stats()

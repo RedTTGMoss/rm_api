@@ -1,4 +1,3 @@
-import _thread
 import asyncio
 import base64
 import json
@@ -8,14 +7,12 @@ import ssl
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from hashlib import sha256
-from io import BytesIO
 from json import JSONDecodeError
 from traceback import format_exc, print_exc
 from typing import TYPE_CHECKING, Union, Tuple, List, Set
 
 import aiohttp
 import certifi
-import dill
 from aiohttp import ClientTimeout
 from colorama import Fore, Style
 from crc32c import crc32c
@@ -51,7 +48,7 @@ class CacheMiss(Exception):
 
 def pickle_document(doc: Union['models.Document', 'models.DocumentCollection']):
     if isinstance(doc, models.DocumentCollection):
-        return dill.dumps(doc, fix_imports=True)
+        return pickle.dumps(doc, fix_imports=True)
     # Strip unnecessary data before pickling
     api = doc.api
     content_data = doc.content_data
