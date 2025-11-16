@@ -32,7 +32,7 @@ jobs:
       - name: Fetch tags for current commit
         run: git fetch --tags --depth=1
 
-      - name: Set up python 3.9
+      - name: Set up python 3.9 - Please update as needed
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
