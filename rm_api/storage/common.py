@@ -38,6 +38,9 @@ def get_document_storage_uri(api: 'API'):
 
 def get_document_notifications_uri(api: 'API'):
     response = api.session.get(DOCUMENT_NOTIFICATIONS_URL.format(api.discovery_uri))
+    if not response.ok:
+        api.use_new_sync = True
+        return None
     host = response.json().get("Host")
     if host == 'local.appspot.com':  # rM Fake Cloud by DDVK
         host = api.uri.split("://")[1].split("/")[0]

@@ -416,7 +416,6 @@ def process_file_content(
         if file.uuid in deleted_document_collections_list:
             deleted_document_collections_list.remove(file.uuid)
 
-
     # Check for pickle cache first
     if api.indexer.hash_exists(pickle_hash):
         data = api.indexer.read_bytes(pickle_hash)
@@ -511,7 +510,7 @@ def process_file_content(
         # Any other files here can be skipped, they aren't relevant
 
 
-def get_documents_using_root(api: 'API', progress, root):
+def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: List[str] = None):
     progress(0, 1)
     # This initial part is entirely delegated to handling the root file and any issues
     try:
@@ -523,7 +522,7 @@ def get_documents_using_root(api: 'API', progress, root):
             )
             api.reset_root()
             root = api.get_root().get('hash', 'miss')
-            return get_documents_using_root(api, progress, root)
+            return get_documents_using_root(api, progress, root, priority_file_uuids=priority_file_uuids)
         version, files = get_file(api, root)  # Fetch the root file
         if version == -1 or len(files) == 0:  # Blank root file / Missing
             if api.offline_mode and version == -1:  # Offline and can't get root
@@ -559,6 +558,15 @@ def get_documents_using_root(api: 'API', progress, root):
     # We also keep track of collections with items, so we can mark them correctly
     document_collections_with_items = set()
     badly_hashed = []
+
+    # We prioritize any files first
+    if priority_file_uuids:
+        files.sort(
+            key=lambda file:
+            priority_file_uuids.index(file.uuid)
+            if file.uuid in priority_file_uuids
+            else float('inf')
+        )
 
     # We mark the progress of the fetch
     total = len(files)

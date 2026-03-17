@@ -249,12 +249,12 @@ class API:
         self.set_token(get_token(self, code, remarkable), remarkable)
 
     @retry_on_version_bump
-    def get_documents(self, progress=lambda d, i: None):
+    def get_documents(self, progress=lambda d, i: None, priority_file_uuids: List[str] = None):
         self.check_for_document_storage()
         if self.use_new_sync:
-            get_documents_new_sync(self, progress)
+            get_documents_new_sync(self, progress, priority_file_uuids=priority_file_uuids)
         else:
-            get_documents_old_sync(self, progress)
+            get_documents_old_sync(self, progress, priority_file_uuids=priority_file_uuids)
 
     @retry_on_version_bump
     def get_root(self):

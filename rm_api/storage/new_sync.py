@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 import jwt
 
 from rm_api.storage.v3 import get_documents_using_root
@@ -16,10 +16,10 @@ def get_root(api: 'API') -> dict:
     ).json()
 
 
-def get_documents_new_sync(api: 'API', progress):
+def get_documents_new_sync(api: 'API', progress, priority_file_uuids: List[str] = None):
     root = get_root(api).get('hash', 'miss')
     api.last_root = root
-    return get_documents_using_root(api, progress, root)
+    return get_documents_using_root(api, progress, root, priority_file_uuids=priority_file_uuids)
 
 
 def handle_new_api_steps(api: 'API'):

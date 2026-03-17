@@ -50,7 +50,7 @@ def update_root(api: 'API', root: dict):
     return True
 
 
-def get_documents_old_sync(api: 'API', progress):
+def get_documents_old_sync(api: 'API', progress, priority_file_uuids: List[str] = None):
     root = get_root(api).get('hash', 'miss')
     api.last_root = root
-    return get_documents_using_root(api, progress, root)
+    return get_documents_using_root(api, progress, root, priority_file_uuids=priority_file_uuids)
