@@ -126,7 +126,20 @@ class API:
         logging.basicConfig(filename=self.log_file, level=logging.INFO,
                             format='%(asctime)s - %(message)s',
                             filemode='a')  # 'a' for append mode
-        self.loop = asyncio.get_event_loop()
+        self.loop = self._get_or_create_event_loop()
+
+    @staticmethod
+    def _get_or_create_event_loop():
+        """Get the current loop or create one when running in a sync context (Python 3.14+)."""
+        try:
+            return asyncio.get_running_loop()
+        except RuntimeError:
+            try:
+                return asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                return loop
 
     @property
     def hook_list(self):

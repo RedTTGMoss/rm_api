@@ -13,7 +13,15 @@ if TYPE_CHECKING:
 
 
 def get_document_storage_uri(api: 'API'):
+    # NOTE: THE OLD DISCOVERY URLS ARE NO LONGER ACTIVE
+    api.use_new_sync = True
+    return None
+
+    # OLD CODE FOR REFERENCE:
     response = api.session.get(DOCUMENT_STORAGE_URL.format(api.discovery_uri))
+    if not response.ok:
+        api.use_new_sync = True
+        return None
     host = response.json().get("Host")
     secure = 'https'
     if host == 'local.appspot.com':
