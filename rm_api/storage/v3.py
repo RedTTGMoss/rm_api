@@ -143,7 +143,7 @@ def make_files_request(api: 'API', method, file, data: dict = None, binary: bool
     elif head:
         operation.use_response(response)
 
-    if operation.first_chunk == b'{"message":"invalid hash"}\n':
+    if operation.first_chunk.startswith(b'{"message":"invalid hash"}'):
         response.close()
         operation.stage = MISSING_CONTENT
         return None
