@@ -129,7 +129,11 @@ def make_files_request(api: 'API', method, file, data: dict = None, binary: bool
         FILES_URL.format(api.document_storage_uri, file),
         json=data or None,
         stream=True,
-        allow_redirects=not head
+        allow_redirects=not head,
+        headers={
+            **api.session.headers,
+            "Head": "true" if head else "false"
+        }
     )
     operation.use_response(response, head)
     if head:
