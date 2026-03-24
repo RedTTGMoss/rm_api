@@ -32,10 +32,10 @@ jobs:
       - name: Fetch tags for current commit
         run: git fetch --tags --depth=1
 
-      - name: Set up python 3.9 - Please update as needed
+      - name: Set up python 3.10 - Please update as needed
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
           cache: 'pip'
 
       - name: Install Poetry
