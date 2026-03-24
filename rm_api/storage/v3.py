@@ -264,6 +264,7 @@ async def put_file_async(api: 'API', file: 'File', data: bytes, sync_event: Docu
                 # S3 Specific headers
                 google_headers = {
                     "Content-Type": "application/octet-stream",
+                    "Content-Length": str(content_length)
                 }
             else:
                 google_headers = {
