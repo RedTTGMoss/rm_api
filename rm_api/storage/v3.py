@@ -260,19 +260,27 @@ async def put_file_async(api: 'API', file: 'File', data: bytes, sync_event: Docu
             # Reset progress, start uploading through google instead
             data_adapter.reset()
 
+            if 'x-sync-s3' in response.headers:
+                # S3 Specific headers
+                google_headers = {
+                    "Content-Type": "application/octet-stream",
+                }
+            else:
+                google_headers = {
+                        **headers,
+                        'x-goog-content-length-range': response.headers['x-goog-content-length-range'],
+                        'x-goog-hash': f'crc32c={checksum_bs4}'
+                    }
+
             try:
-                api.log("Google signed url was provided by the API, uploading to that now.")
+                api.log("Google/S3 signed url was provided by the API, uploading to that now.")
                 response = await fetch_with_retries(
                     session,
                     response.headers['location'],
                     'PUT',
                     api.retry_strategy,
                     data_adapter,
-                    headers={
-                        **headers,
-                        'x-goog-content-length-range': response.headers['x-goog-content-length-range'],
-                        'x-goog-hash': f'crc32c={checksum_bs4}'
-                    }
+                    headers=google_headers
                 )
             except:
                 api.log(format_exc())

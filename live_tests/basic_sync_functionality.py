@@ -10,8 +10,8 @@ from rm_api import API
 from rm_api.storage.v3 import poll_file, check_file_exists
 
 print(rm_api.__file__)
-
-api = API(ask_reset=True)
+URI = "http://127.0.0.1:8000/"
+api = API(ask_reset=True, uri=URI, discovery_uri=URI)
 api.debug = True
 
 _ = api.token
