@@ -81,6 +81,8 @@ class API:
         if self.sync_file_path is not None:
             os.makedirs(self.sync_file_path, exist_ok=True)
         self.last_root = None
+        self.file_list = []
+        self.allow_file_list = True
         self.offline_mode = False
         self.document_storage_uri = None
         self.document_notifications_uri = None
@@ -406,18 +408,35 @@ class API:
 
         # Figure out what files have changed
         progress.stage = STAGE_DIFF_CHECK_DOCUMENTS
+        files_to_check = []
+
+        def check_file(file: File):
+            try:
+                exists = check_file_exists(self, file.hash, binary=True, use_cache=False)
+                if not exists:
+                    files_with_changes.append(file)
+                else:
+                    old_files.append(file)
+            except:
+                files_with_changes.append(file)
+            finally:
+                progress.done += 1
+                files_to_check.remove(file)
+
         for document in documents:
             for file in document.files:
-                try:
-                    exists = check_file_exists(self, file.hash, binary=True, use_cache=False)
-                    if not exists:
-                        files_with_changes.append(file)
-                    else:
-                        old_files.append(file)
-                except:
-                    files_with_changes.append(file)
-                finally:
-                    progress.done += 1
+                files_to_check.append(file)
+
+        futures = []
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            loop = asyncio.new_event_loop()  # Get the current event loop
+            for file in files_to_check:
+                future = loop.run_in_executor(executor, check_file, file)
+                futures.append(future)
+            executor.shutdown(wait=True)
+
+        while len(files_to_check) > 0:
+            time.sleep(.1)
 
         progress.stage = STAGE_PREPARE_DATA
 
@@ -457,6 +476,7 @@ class API:
 
         for document in documents:
             document_sync_operation = DocumentSyncProgress(document.uuid, progress)
+
             document_operations[document.uuid] = document_sync_operation
 
         progress.stage = STAGE_UPLOAD

@@ -28,6 +28,7 @@ from rm_api.storage.exceptions import NewSyncRequired
 from rm_api.sync_stages import FETCH_FILE, GET_CONTENTS, GET_FILE, LOAD_CONTENT, MISSING_CONTENT, FETCH_CACHE
 
 FILES_URL = "{0}sync/v3/files/{1}"
+FILES_LIST_URL = "{0}sync/v3/files-list"
 
 ssl_context = ssl.create_default_context(cafile=certifi.where() if os.name == 'darwin' else None)
 
@@ -300,6 +301,7 @@ async def put_file_async(api: 'API', file: 'File', data: bytes, sync_event: Docu
     else:
         api.log(file.uuid, "uploaded")
 
+    api.file_list.append(file.hash)
     sync_event.finish_task()
     return True
 
@@ -347,6 +349,17 @@ def _check_file_exists(api: 'API', file, binary: bool = False, use_cache: bool =
 @lru_cache(maxsize=600)
 def check_file_exists(api: 'API', file, binary: bool = False, use_cache: bool = True,
                       operation: DownloadOperation = None):
+    if not api.file_list and api.allow_file_list:
+        response = api.session.get(FILES_LIST_URL.format(api.document_storage_uri))
+        if response.ok:
+            api.file_list = response.json()
+        else:
+            api.allow_file_list = False
+    if api.allow_file_list:
+        exists = file in api.file_list
+        if operation:
+            operation.stage = FETCH_CACHE if exists else MISSING_CONTENT
+        return exists
     return _check_file_exists(api, file, binary=binary, use_cache=use_cache, ref=file, stage=FETCH_FILE,
                               operation=operation)
 
