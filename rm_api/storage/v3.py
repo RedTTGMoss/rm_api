@@ -349,12 +349,19 @@ def _check_file_exists(api: 'API', file, binary: bool = False, use_cache: bool =
 @lru_cache(maxsize=600)
 def check_file_exists(api: 'API', file, binary: bool = False, use_cache: bool = True,
                       operation: DownloadOperation = None):
-    if not api.file_list and api.allow_file_list:
-        response = api.session.get(FILES_LIST_URL.format(api.document_storage_uri))
-        if response.ok:
-            api.file_list = response.json()
+    if not api.file_list_fetched and api.allow_file_list:
+        if api.file_list_lock.locked():
+            # Another thread is already fetching the file list, we can just wait for it to finish
+            api.file_list_lock.acquire()
+            api.file_list_lock.release()
         else:
-            api.allow_file_list = False
+            with api.file_list_lock:
+                response = api.session.get(FILES_LIST_URL.format(api.document_storage_uri))
+                if response.ok:
+                    api.file_list = response.json()
+                    api.file_list_fetched = True
+                else:
+                    api.allow_file_list = False
     if api.allow_file_list:
         exists = file in api.file_list
         if operation:

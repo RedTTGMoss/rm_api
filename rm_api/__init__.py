@@ -82,6 +82,8 @@ class API:
             os.makedirs(self.sync_file_path, exist_ok=True)
         self.last_root = None
         self.file_list = []
+        self.file_list_fetched = False
+        self.file_list_lock = threading.Lock()
         self.allow_file_list = True
         self.offline_mode = False
         self.document_storage_uri = None

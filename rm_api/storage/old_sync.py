@@ -29,6 +29,7 @@ def update_root(api: 'API', root: dict):
     data = json.dumps(root, indent=4).encode('utf-8')
     checksum_bs4 = base64.b64encode(crc32c(data).to_bytes(4, 'big')).decode('utf-8')
     api.file_list.clear()
+    api.file_list_fetched = False
     exists = check_file_exists(api, root['hash'], use_cache=False)
     if not exists and not api.ignore_error_protection:
         api.spread_event(APIFatal())
