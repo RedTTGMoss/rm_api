@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Union, Tuple, List, Set
 
 import aiohttp
 import certifi
+import requests
 from aiohttp import ClientTimeout
 from colorama import Fore, Style
 from crc32c import crc32c
@@ -358,7 +359,13 @@ def check_file_exists(api: 'API', file, binary: bool = False, use_cache: bool = 
             with api.file_list_lock:
                 response = api.session.get(FILES_LIST_URL.format(api.document_storage_uri))
                 if response.ok:
-                    api.file_list = response.json()
+                    try:
+                        api.file_list = response.json()
+                    except requests.exceptions.JSONDecodeError:
+                        api.allow_file_list = False
+                        return _check_file_exists(api, file, binary=binary, use_cache=use_cache, ref=file,
+                                                  stage=FETCH_FILE, operation=operation)
+
                     api.file_list_fetched = True
                 else:
                     api.allow_file_list = False
