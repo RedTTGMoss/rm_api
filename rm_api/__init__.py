@@ -81,6 +81,7 @@ class API:
         if self.sync_file_path is not None:
             os.makedirs(self.sync_file_path, exist_ok=True)
         self.last_root = None
+        self.cached_file_list = set()
         self.file_list = []
         self.file_list_fetched = False
         self.file_list_lock = threading.Lock()

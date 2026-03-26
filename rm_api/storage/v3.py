@@ -270,10 +270,10 @@ async def put_file_async(api: 'API', file: 'File', data: bytes, sync_event: Docu
                 }
             else:
                 google_headers = {
-                        **headers,
-                        'x-goog-content-length-range': response.headers['x-goog-content-length-range'],
-                        'x-goog-hash': f'crc32c={checksum_bs4}'
-                    }
+                    **headers,
+                    'x-goog-content-length-range': response.headers['x-goog-content-length-range'],
+                    'x-goog-hash': f'crc32c={checksum_bs4}'
+                }
 
             try:
                 api.log("Google/S3 signed url was provided by the API, uploading to that now.")
@@ -347,9 +347,12 @@ def _check_file_exists(api: 'API', file, binary: bool = False, use_cache: bool =
     return make_files_request(api, "HEAD", file, binary=binary, use_cache=use_cache, operation=operation)
 
 
-@lru_cache(maxsize=600)
+@lru_cache(maxsize=50)
 def check_file_exists(api: 'API', file, binary: bool = False, use_cache: bool = True,
                       operation: DownloadOperation = None):
+    if file.hash in api.cached_file_list:
+        return True
+
     if not api.file_list_fetched and api.allow_file_list:
         if api.file_list_lock.locked():
             # Another thread is already fetching the file list, we can just wait for it to finish
@@ -550,7 +553,7 @@ def process_file_content(
         # Any other files here can be skipped, they aren't relevant
 
 
-def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: List[str] = None):
+def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: List[str] = None) -> None:
     progress(0, 1)
     # This initial part is entirely delegated to handling the root file and any issues
     try:
@@ -573,11 +576,11 @@ def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: Li
                     f"API is in offline mode, please sync at least once"
                     f"{Fore.RESET}{Style.RESET_ALL}"
                 )
-                return
+                return None
             version, files = get_file(api, root, False)  # Force refetch
     except DownloadOperation.DownloadCancelException:  # Cancelled by user
         progress(0, 0)
-        return
+        return None
     except AssertionError as e:
         progress(0, 0)
         raise e  # Allow AssertionError passthrough
@@ -586,7 +589,7 @@ def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: Li
         api.spread_event(APIFatal())
         progress(0, 0)
         print(f"{Fore.RED}{Style.BRIGHT}AN ISSUE OCCURRED GETTING YOUR ROOT INDEX!{Fore.RESET}{Style.RESET_ALL}")
-        return
+        return None
 
     # We make a list of all the documents and collections we have
     # These dictionaries store any file that might be deleted
@@ -613,13 +616,18 @@ def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: Li
     count = 0
     progress(0, total)
 
+    # We cache every hash we run across
+    file_cache = set()
+
     def handle_file(file: 'File'):  # This refers to one file from the root
         nonlocal count, total
         _, file_content = get_file(api, file.hash)  # Get the file content listing
+        file_cache.add(file.hash)
 
         # Check the hash in case it needs fixing
         document_file_hash = sha256()
         for item in sorted(file_content, key=lambda item: file.uuid):
+            file_cache.add(item.hash)
             document_file_hash.update(bytes.fromhex(item.hash))
         expected_hash = document_file_hash.hexdigest()
         matches_hash = file.hash == expected_hash
@@ -649,7 +657,7 @@ def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: Li
             for batch in batched(files, batch_size):
                 executor.map(handle_file_and_check_for_errors if api.debug else handle_file, batch)
     except RuntimeError:
-        return
+        return None
 
     # Here we use the api to reupload any badly hashed documents
     # This process goes through rm_api's normal upload process to ensure everything is correct
@@ -680,7 +688,10 @@ def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: Li
         count += 1
         progress(count, total)
 
+    api.cached_file_list = file_cache
+
     # We fetched / fixed / reloaded the root file
     # We parsed through each file, creating documents and collections as necessary
     # We deleted any documents or collections that were no longer present
     # Finally if everything went well, the progress has already reached 100%
+    return None
