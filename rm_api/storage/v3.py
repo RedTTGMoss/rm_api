@@ -348,9 +348,11 @@ def _check_file_exists(api: 'API', file, binary: bool = False, use_cache: bool =
 
 
 @lru_cache(maxsize=50)
-def check_file_exists(api: 'API', file, binary: bool = False, use_cache: bool = True,
+def check_file_exists(api: 'API', file: str, binary: bool = False, use_cache: bool = True,
                       operation: DownloadOperation = None):
-    if file.hash in api.cached_file_list:
+    if file in api.cached_file_list:
+        if operation:
+            operation.stage = FETCH_CACHE
         return True
 
     if not api.file_list_fetched and api.allow_file_list:
