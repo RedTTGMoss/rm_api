@@ -795,11 +795,12 @@ class DocumentCollection:
     downloading = False
     available = True
 
-    def __init__(self, tags: List[Tag], metadata: Metadata, uuid: str):
+    def __init__(self, tags: List[Tag], metadata: Metadata, uuid: str, server_hash: str = None):
         self.tags = tags
         self.metadata = metadata
         self.uuid = uuid
         self.has_items = False
+        self.server_hash = server_hash
 
     @property
     def parent(self):
@@ -891,7 +892,7 @@ class DocumentCollection:
         raw_metadata = document_collection.metadata.to_dict()
         metadata = Metadata(raw_metadata, make_hash(json.dumps(raw_metadata, indent=4)))
 
-        new = cls(tags, metadata, document_collection.uuid)
+        new = cls(tags, metadata, document_collection.uuid, document_collection.server_hash)
         return new
 
     def __copy__(self):

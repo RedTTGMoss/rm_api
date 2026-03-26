@@ -9,7 +9,7 @@ from functools import lru_cache
 from hashlib import sha256
 from json import JSONDecodeError
 from traceback import format_exc, print_exc
-from typing import TYPE_CHECKING, Union, Tuple, List, Set
+from typing import TYPE_CHECKING, Union, Tuple, List, Set, Optional
 
 import aiohttp
 import certifi
@@ -64,10 +64,15 @@ def pickle_document(doc: Union['models.Document', 'models.DocumentCollection']):
     return data
 
 
-def unpickle_document(data: bytes, api: 'API') -> Union['models.Document', 'models.DocumentCollection']:
+def unpickle_document(data: bytes, api: 'API') -> Optional[Union['models.Document', 'models.DocumentCollection']]:
     doc = pickle.loads(data, fix_imports=True)
     if isinstance(doc, models.Document):
         doc.api = api
+    elif isinstance(doc, models.DocumentCollection):
+        try:
+            getattr(doc, "server_hash")
+        except AttributeError:
+            return None
     return doc
 
 
@@ -465,11 +470,14 @@ def process_file_content(
     if api.indexer.hash_exists(pickle_hash):
         data = api.indexer.read_bytes(pickle_hash)
         obj = unpickle_document(data, api)
-        if isinstance(obj, models.DocumentCollection):
-            handle_document_collection(obj)
-        elif isinstance(obj, models.Document):
-            handle_document(obj)
-        return  # We loaded from cache, no need to continue processing
+        if obj:
+            if isinstance(obj, models.DocumentCollection):
+                handle_document_collection(obj)
+            elif isinstance(obj, models.Document):
+                handle_document(obj)
+            return  # We loaded from cache, no need to continue processing
+        else:
+            require_update_cache = True
 
     content = None
 
@@ -538,7 +546,7 @@ def process_file_content(
                 # We create and register the document collection
                 doc = models.DocumentCollection(
                     [models.Tag(tag) for tag in tags],
-                    metadata, file.uuid
+                    metadata, file.uuid, file.hash
                 )
 
                 handle_document_collection(doc)
@@ -633,6 +641,21 @@ def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: Li
             document_file_hash.update(bytes.fromhex(item.hash))
         expected_hash = document_file_hash.hexdigest()
         matches_hash = file.hash == expected_hash
+
+        if matches_hash:
+            # Skip progress for already scanned and unchanged files.
+            if (doc := api.documents.get(file.uuid)) and doc.server_hash == file.hash:
+                if file.uuid in deleted_documents_list:
+                    deleted_documents_list.remove(file.uuid)
+                count += 1
+                progress(count, total)  # We report progress for this file since it's finished
+                return
+            elif (col := api.document_collections.get(file.uuid)) and col.server_hash == file.hash:
+                if file.uuid in deleted_document_collections_list:
+                    deleted_document_collections_list.remove(file.uuid)
+                count += 1
+                progress(count, total)  # We report progress for this file since it's finished
+                return
 
         # Process the document/collection
         process_file_content(file_content, file, deleted_document_collections_list, deleted_documents_list,
