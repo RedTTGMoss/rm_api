@@ -25,3 +25,4 @@ class Orientations(Enum):
 class DocumentTypes(Enum):
     Document = 'DocumentType'
     Collection = 'CollectionType'
+    Template = 'TemplateType'

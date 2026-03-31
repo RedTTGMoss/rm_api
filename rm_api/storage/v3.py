@@ -443,6 +443,10 @@ def process_file_content(
         if file.uuid in deleted_documents_list:
             deleted_documents_list.remove(file.uuid)
 
+    def handle_template(template):
+        # We create and register the template
+        api.templates[file.uuid] = template
+
     def handle_document_collection(doc_collection):
         # We create and register the document collection
         api.document_collections[file.uuid] = doc_collection
@@ -559,6 +563,21 @@ def process_file_content(
                                       metadata, file_content, file.uuid, file.hash)
                 handle_document(doc)
                 break  # Finish processing this file, there is no need to continue
+            elif metadata.type == DocumentTypes.Template.value:
+                template_data = None
+                for file in file_content:
+                    if file.uuid.endswith('.template'):
+                        try:
+                            template_data = get_file_contents(api, file.hash)
+                        except:
+                            break
+                if template_data is None:
+                    break  # An issue getting the template
+
+                doc = models.Template(template_data, metadata, file.uuid, file.hash)
+
+                handle_template(doc)
+
 
         # Any other files here can be skipped, they aren't relevant
 

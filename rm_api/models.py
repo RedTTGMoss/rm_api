@@ -1339,3 +1339,11 @@ class Document(DownloadOperationsSupport):
         new.metadata.created_time = now_time_int()
         new.provision = True
         return new
+
+class Template:
+    def __init__(self, template_data, metadata: Metadata, uuid: str, server_hash: str = None):
+        self._template = template_data
+        self.metadata = metadata
+        self.uuid = uuid
+        self.has_items = False
+        self.server_hash = server_hash

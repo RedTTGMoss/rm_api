@@ -15,7 +15,7 @@ from urllib3 import Retry, PoolManager
 
 from .auth import MissingTabletLink, get_token, refresh_token
 from .download_lock import DownloadLock
-from .models import DocumentCollection, Document, Metadata, Content, make_uuid, File, make_hash
+from .models import DocumentCollection, Document, Metadata, Content, make_uuid, File, make_hash, Template
 from .notifications import handle_notifications
 from .notifications.models import FileSyncProgress, SyncRefresh, DocumentSyncProgress, NewDocuments, APIFatal, \
     DownloadOperation
@@ -57,6 +57,7 @@ def retry_on_version_bump(fn):
 class API:
     document_collections: Dict[str, DocumentCollection]
     documents: Dict[str, Document]
+    templates: Dict[str, Template]
 
     def __init__(self, require_token: bool = True, token_file_path: str = 'token', sync_file_path: str = 'sync',
                  uri: str = None, discovery_uri: str = None, author_id: str = None, log_file='rm_api.log', ask_reset: bool = False):
@@ -100,6 +101,8 @@ class API:
         self.document_collections = {}
         # noinspection PyTypeChecker
         self.documents = {}
+        # noinspection PyTypeChecker
+        self.templates = {}
         self._token = None
         self.debug = False
         self.ask_reset = ask_reset
