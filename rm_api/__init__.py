@@ -426,23 +426,21 @@ class API:
             except:
                 files_with_changes.append(file)
             finally:
-                progress.done += 1
                 files_to_check.remove(file)
 
         for document in documents:
             for file in document.files:
                 files_to_check.append(file)
 
-        futures = []
         with ThreadPoolExecutor(max_workers=10) as executor:
-            loop = asyncio.new_event_loop()  # Get the current event loop
-            for file in files_to_check:
-                future = loop.run_in_executor(executor, check_file, file)
-                futures.append(future)
-            executor.shutdown(wait=True)
+            futures = [
+                executor.submit(check_file, file)
+                for file in files_to_check
+            ]
 
-        while len(files_to_check) > 0:
-            time.sleep(.1)
+            for future in futures:
+                future.result()
+                progress.done += 1
 
         progress.stage = STAGE_PREPARE_DATA
 

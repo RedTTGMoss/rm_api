@@ -10,7 +10,7 @@ from colorama import Fore
 
 from rm_api.notifications.models import DownloadOperation
 from rm_api.storage.common import FileHandle
-from rm_api.sync_stages import UNKNOWN_DOWNLOAD_OPERATION, FETCH_FILE, DOWNLOAD_CONTENT, GET_CONTENTS
+from rm_api.sync_stages import UNKNOWN_DOWNLOAD_OPERATION, FETCH_FILE, DOWNLOAD_CONTENT, GET_CONTENTS, LOAD_CONTENT
 
 if TYPE_CHECKING:
     from . import API, File
@@ -118,7 +118,8 @@ class DownloadOperationsSupport:
     def online_download_operations(self):
         return [op for op in list(self._download_operations) if op.stage in (
             DOWNLOAD_CONTENT,
-            GET_CONTENTS
+            GET_CONTENTS,
+            LOAD_CONTENT
         )]
 
     @property

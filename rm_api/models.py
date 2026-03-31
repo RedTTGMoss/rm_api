@@ -4,6 +4,7 @@ import os.path
 import threading
 import time
 import uuid
+from concurrent.futures import as_completed
 from concurrent.futures.thread import ThreadPoolExecutor
 from copy import copy, deepcopy
 from datetime import datetime
@@ -21,7 +22,7 @@ from rm_api.notifications.models import APIFatal, DownloadOperation, DocumentDow
 from rm_api.storage.common import FileHandle
 from rm_api.storage.v3 import get_file_contents, CacheMiss
 from rm_api.templates import BLANK_TEMPLATE
-from rm_api.sync_stages import DOWNLOAD_CONTENT, FETCH_FILE, MISSING_CONTENT
+from rm_api.sync_stages import DOWNLOAD_CONTENT, FETCH_FILE, MISSING_CONTENT, GET_CONTENTS
 
 try:
     from rm_lines.rmscene.scene_stream import write_blocks
@@ -1044,7 +1045,7 @@ class Document(DownloadOperationsSupport):
                 for file, operation in zip(files, operations)
             ]
             try:
-                for future in concurrent.futures.as_completed(futures):
+                for future in as_completed(futures):
                     if cancel_event.is_set():
                         break
                     future.result()
@@ -1066,22 +1067,54 @@ class Document(DownloadOperationsSupport):
                 self.api.download_lock.task_condition.wait()
             for operation in operations:
                 self.api.finish_download_operation(operation)
+    def _handle_finishing_load_operations(self, operations: List[DownloadOperation]):
+        for operation in operations:
+            self.api.finish_download_operation(operation)
+
+    def _load_file(self, file, op):
+        if file.uuid not in self.content_files:
+            self.api.finish_download_operation(op)
+            return True
+        if file.uuid in self.content_data:
+            self.api.finish_download_operation(op)
+            return True
+        try:
+            data = get_file_contents(self.api, file.hash, binary=True, enforce_cache=True,
+                                     operation=op, auto_finish=False)
+        except CacheMiss:
+            return False
+        if data:
+            self.content_data[file.uuid] = data
+
+        return True
 
     def _load_files(self, callback=None):
+        files = []
+        operations = []
         for file in self.files:
-            if file.uuid not in self.content_files:
+            if file.uuid not in self.content_files or file.uuid in self.content_data:
                 continue
-            if file.uuid in self.content_data:
-                continue
-            try:
-                data = get_file_contents(self.api, file.hash, binary=True, update=self, ref=self, enforce_cache=True)
-            except CacheMiss:
-                self.files_available = self.check_files_availability()
-                self.check()
-                self._download_files(callback)
-                return
-            if data:
-                self.content_data[file.uuid] = data
+            op = DownloadOperation(self, GET_CONTENTS)
+            op.total = file.size
+            self.add_download_operation(op)
+            self.api.add_download_operation(op)
+            files.append(file)
+            operations.append(op)
+        with ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(self._load_file, file, op)
+                for file, op in zip(files, operations)
+            ]
+            for future in as_completed(futures):
+                if not future.result():
+                    executor.shutdown(wait=False)
+                    self.files_available = self.check_files_availability()
+                    self.check()
+                    self._handle_finishing_load_operations(operations)
+                    self._download_files(callback)
+                    return
+        self._handle_finishing_load_operations(operations)
+
         if callback:
             callback()
 
