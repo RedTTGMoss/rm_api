@@ -936,7 +936,7 @@ class Document(DownloadOperationsSupport):
         'pdf', 'notebook', 'epub'
     ]
     CONTENT_FILE_TYPES = [
-        'pdf', 'rm', 'epub', 'pagedata', '-metadata.json'
+        'pdf', 'rm', 'epub', 'pagedata', '-metadata.json', 'png'
     ]
     ALL_FILE_TYPES = [
         *CONTENT_FILE_TYPES,
