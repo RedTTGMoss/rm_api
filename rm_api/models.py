@@ -938,6 +938,11 @@ class Document(DownloadOperationsSupport):
     CONTENT_FILE_TYPES = [
         'pdf', 'rm', 'epub', 'pagedata', '-metadata.json'
     ]
+    ALL_FILE_TYPES = [
+        *CONTENT_FILE_TYPES,
+        ".content",
+        ".metadata",
+    ]
 
     files: List[File]
     content_data: Dict[str, bytes]
@@ -959,6 +964,11 @@ class Document(DownloadOperationsSupport):
                 not self.content.file_type in self.unknown_file_types:
             self.unknown_file_types.add(self.content.file_type)
             print(f'{Fore.RED}Unknown file type: {self.content.file_type}{Fore.RESET}')
+
+        for file in files:
+            if not any(file.uuid.endswith(file_type) for file_type in self.ALL_FILE_TYPES):
+                print(f'{Fore.YELLOW}Unknown content file type for file {file.uuid}{Fore.RESET}')
+
 
         if check:
             self.check()
