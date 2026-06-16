@@ -30,6 +30,8 @@ from rm_api.sync_stages import FETCH_FILE, GET_CONTENTS, GET_FILE, LOAD_CONTENT,
 
 FILES_URL = "{0}sync/v3/files/{1}"
 FILES_LIST_URL = "{0}sync/v3/files-list"
+ROOT_DOC_SCHEMA = "root.docSchema"
+FILE_DOC_SCHEMA = "{0}.docSchema"
 
 ssl_context = ssl.create_default_context(cafile=certifi.where() if os.name == 'darwin' else None)
 
@@ -101,7 +103,7 @@ def make_storage_request(api: 'API', method, request, data: dict = None) -> Unio
         return response.text
 
 
-def make_files_request(api: 'API', method, file, data: dict = None, binary: bool = False, use_cache: bool = True,
+def make_files_request(api: 'API', method, file: str, filename: str, data: dict = None, binary: bool = False, use_cache: bool = True,
                        enforce_cache: bool = False, operation: DownloadOperation = None) -> \
         Union[str, None, dict, bool, bytes]:
     if method == 'HEAD':
@@ -139,6 +141,7 @@ def make_files_request(api: 'API', method, file, data: dict = None, binary: bool
         allow_redirects=not head,
         headers={
             **api.session.headers,
+            "rm-filename": filename,
             "Head": "true" if head else "false"
         }
     )
@@ -161,7 +164,7 @@ def make_files_request(api: 'API', method, file, data: dict = None, binary: bool
     elif not response.ok:
         response.close()
         operation.stage = MISSING_CONTENT
-        raise Exception(f"Failed to make files request - {response.status_code}\n{response.text}")
+        raise Exception(f"Failed to make files request - {response.status_code}\n{response.text or operation.first_chunk}")
 
     if api.indexer.allow_write:
         try:
@@ -326,9 +329,9 @@ def put_file(api: 'API', file: 'File', data: bytes, sync_event: DocumentSyncProg
 
 
 @download_operation_wrapper_with_stage(GET_FILE)
-def get_file(api: 'API', file, use_cache: bool = True, raw: bool = False, operation: DownloadOperation = None) -> Tuple[
+def get_file(api: 'API', file, filename, use_cache: bool = True, raw: bool = False, operation: DownloadOperation = None) -> Tuple[
     int, Union[List['File'], List[str]]]:
-    res = make_files_request(api, "GET", file, use_cache=use_cache, operation=operation)
+    res = make_files_request(api, "GET", file, filename, use_cache=use_cache, operation=operation)
     if not res:
         return -1, []
     if isinstance(res, int):
@@ -340,20 +343,20 @@ def get_file(api: 'API', file, use_cache: bool = True, raw: bool = False, operat
 
 
 @download_operation_wrapper_with_stage(GET_CONTENTS)
-def get_file_contents(api: 'API', file, binary: bool = False, use_cache: bool = True, enforce_cache: bool = False,
+def get_file_contents(api: 'API', file, filename, binary: bool = False, use_cache: bool = True, enforce_cache: bool = False,
                       operation: DownloadOperation = None):
-    return make_files_request(api, "GET", file, binary=binary, use_cache=use_cache, enforce_cache=enforce_cache,
+    return make_files_request(api, "GET", file, filename, binary=binary, use_cache=use_cache, enforce_cache=enforce_cache,
                               operation=operation)
 
 
 @download_operation_wrapper
-def _check_file_exists(api: 'API', file, binary: bool = False, use_cache: bool = True,
+def _check_file_exists(api: 'API', file, filename, binary: bool = False, use_cache: bool = True,
                        operation: DownloadOperation = None):
-    return make_files_request(api, "HEAD", file, binary=binary, use_cache=use_cache, operation=operation)
+    return make_files_request(api, "HEAD", file, filename, binary=binary, use_cache=use_cache, operation=operation)
 
 
 @lru_cache(maxsize=50)
-def check_file_exists(api: 'API', file: str, binary: bool = False, use_cache: bool = True,
+def check_file_exists(api: 'API', file: str, filename: str, binary: bool = False, use_cache: bool = True,
                       operation: DownloadOperation = None):
     if file in api.cached_file_list:
         if operation:
@@ -373,7 +376,7 @@ def check_file_exists(api: 'API', file: str, binary: bool = False, use_cache: bo
                         api.file_list = response.json()
                     except requests.exceptions.JSONDecodeError:
                         api.allow_file_list = False
-                        return _check_file_exists(api, file, binary=binary, use_cache=use_cache, ref=file,
+                        return _check_file_exists(api, file, filename, binary=binary, use_cache=use_cache, ref=file,
                                                   stage=FETCH_FILE, operation=operation)
 
                     api.file_list_fetched = True
@@ -384,14 +387,14 @@ def check_file_exists(api: 'API', file: str, binary: bool = False, use_cache: bo
         if operation:
             operation.stage = FETCH_CACHE if exists else MISSING_CONTENT
         return exists
-    return _check_file_exists(api, file, binary=binary, use_cache=use_cache, ref=file, stage=FETCH_FILE,
+    return _check_file_exists(api, file, filename, binary=binary, use_cache=use_cache, ref=file, stage=FETCH_FILE,
                               operation=operation)
 
 
 @lru_cache(maxsize=600)
-def poll_file(api: 'API', file, binary: bool = False, use_cache: bool = True,
+def poll_file(api: 'API', file, filename, binary: bool = False, use_cache: bool = True,
               operation: DownloadOperation = None):
-    return _check_file_exists(api, file, binary=binary, use_cache=use_cache, ref=file, stage=FETCH_FILE,
+    return _check_file_exists(api, file, filename, binary=binary, use_cache=use_cache, ref=file, stage=FETCH_FILE,
                               operation=operation)
 
 
@@ -489,7 +492,7 @@ def process_file_content(
         # If we match the content file, we just store it for later
         if item.uuid == f'{file.uuid}.content':
             try:
-                content = get_file_contents(api, item.hash)
+                content = get_file_contents(api, item.hash, item.rm_filename)
             except:
                 break
             if not isinstance(content, dict):
@@ -536,7 +539,7 @@ def process_file_content(
 
             try:
                 # We finally process the raw metadata into a Metadata object
-                metadata = models.Metadata(get_file_contents(api, item.hash), item.hash)
+                metadata = models.Metadata(get_file_contents(api, item.hash, item.rm_filename), item.hash)
             except:
                 # If there's an error processing the metadata, we can just skip it, it's no use
                 continue
@@ -568,8 +571,9 @@ def process_file_content(
                 for file in file_content:
                     if file.uuid.endswith('.template'):
                         try:
-                            template_data = get_file_contents(api, file.hash)
+                            template_data = get_file_contents(api, file.hash, file.rm_filename)
                         except:
+                            print_exc()
                             break
                 if template_data is None:
                     break  # An issue getting the template
@@ -595,7 +599,7 @@ def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: Li
             api.reset_root()
             root = api.get_root().get('hash', 'miss')
             return get_documents_using_root(api, progress, root, priority_file_uuids=priority_file_uuids)
-        version, files = get_file(api, root)  # Fetch the root file
+        version, files = get_file(api, root, ROOT_DOC_SCHEMA)  # Fetch the root file
         if version == -1 or len(files) == 0:  # Blank root file / Missing
             if api.offline_mode and version == -1:  # Offline and can't get root
                 api.spread_event(APIFatal())
@@ -606,7 +610,7 @@ def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: Li
                     f"{Fore.RESET}{Style.RESET_ALL}"
                 )
                 return None
-            version, files = get_file(api, root, False)  # Force refetch
+            version, files = get_file(api, root, ROOT_DOC_SCHEMA, False)  # Force refetch
     except DownloadOperation.DownloadCancelException:  # Cancelled by user
         progress(0, 0)
         return None
@@ -650,7 +654,7 @@ def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: Li
 
     def handle_file(file: 'File'):  # This refers to one file from the root
         nonlocal count, total
-        _, file_content = get_file(api, file.hash)  # Get the file content listing
+        _, file_content = get_file(api, file.hash, file.rm_filename)  # Get the file content listing
         file_cache.add(file.hash)
 
         # Check the hash in case it needs fixing

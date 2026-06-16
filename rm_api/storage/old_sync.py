@@ -30,7 +30,7 @@ def update_root(api: 'API', root: dict):
     checksum_bs4 = base64.b64encode(crc32c(data).to_bytes(4, 'big')).decode('utf-8')
     api.file_list.clear()
     api.file_list_fetched = False
-    exists = check_file_exists(api, root['hash'], use_cache=False)
+    exists = check_file_exists(api, root['hash'], ROOT_DOC_SCHEMA, use_cache=False)
     if not exists and not api.ignore_error_protection:
         api.spread_event(APIFatal())
         raise Exception("The root file attempted to be set was not on the server")

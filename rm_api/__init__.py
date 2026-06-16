@@ -28,7 +28,7 @@ from .storage.new_sync import get_root as get_root_new
 from .storage.old_sync import get_documents_old_sync, update_root, RootUploadFailure
 from .storage.old_sync import get_root as get_root_old
 from .storage.v3 import get_documents_using_root, get_file, get_file_contents, make_files_request, put_file, \
-    check_file_exists
+    check_file_exists, ROOT_DOC_SCHEMA
 from .sync_stages import *
 
 colorama.init()
@@ -368,7 +368,7 @@ class API:
 
         root = self.get_root()  # root info
 
-        _, files = get_file(self, root['hash'])
+        _, files = get_file(self, root['hash'], ROOT_DOC_SCHEMA)
         progress.done += 1  # Got root
 
         new_root = {
@@ -418,7 +418,7 @@ class API:
 
         def check_file(file: File):
             try:
-                exists = check_file_exists(self, file.hash, binary=True, use_cache=False)
+                exists = check_file_exists(self, file.hash, file.rm_filename, binary=True, use_cache=False)
                 if not exists:
                     files_with_changes.append(file)
                 else:
@@ -543,7 +543,7 @@ class API:
 
         root = self.get_root()  # root info
 
-        _, files = get_file(self, root['hash'])
+        _, files = get_file(self, root['hash'], ROOT_DOC_SCHEMA)
         progress.done += 1  # Got root
 
         new_root = {
@@ -620,8 +620,8 @@ class API:
 
         root_file_content = b'3\n'
 
-        root_file = models.File(models.make_hash(root_file_content), f"root.docSchema", 0, len(root_file_content))
+        root_file = models.File(models.make_hash(root_file_content), ROOT_DOC_SCHEMA, 0, len(root_file_content))
         new_root['hash'] = root_file.hash
         put_file(self, root_file, root_file_content, DocumentSyncProgress(''))
         update_root(self, new_root)
-        _, files = get_file(self, new_root['hash'])
+        _, files = get_file(self, new_root['hash'], ROOT_DOC_SCHEMA)

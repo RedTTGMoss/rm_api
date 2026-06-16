@@ -20,7 +20,7 @@ from rm_api.defaults import RM_SCREEN_CENTER, RM_SCREEN_SIZE, ZoomModes, Orienta
 from rm_api.helpers import get_pdf_page_count, DownloadOperationsSupport
 from rm_api.notifications.models import APIFatal, DownloadOperation, DocumentDownloadProgress
 from rm_api.storage.common import FileHandle
-from rm_api.storage.v3 import get_file_contents, CacheMiss
+from rm_api.storage.v3 import get_file_contents, CacheMiss, FILE_DOC_SCHEMA, ROOT_DOC_SCHEMA
 from rm_api.templates import BLANK_TEMPLATE
 from rm_api.sync_stages import DOWNLOAD_CONTENT, FETCH_FILE, MISSING_CONTENT, GET_CONTENTS
 
@@ -75,7 +75,13 @@ class File:
             self.size = try_to_load_int(file_size)
         else:
             self.size = file_size
-        self.rm_filename = rm_filename or file_uuid
+        self.rm_filename = rm_filename
+        if not self.rm_filename:
+            if len(self.uuid.split('.')) < 2:
+                self.rm_filename = FILE_DOC_SCHEMA.format(self.uuid)
+            else:
+                self.rm_filename = self.uuid
+
 
     @classmethod
     def create_root_file(cls, files: List['File']) -> Tuple[bytes, 'File']:
@@ -86,7 +92,7 @@ class File:
             root_file_hash.update(bytes.fromhex(file.hash))
 
         root_file_content = ''.join(root_file_content).encode()
-        root_file = File(root_file_hash.hexdigest(), f"root.docSchema", len(files), len(root_file_content))
+        root_file = File(root_file_hash.hexdigest(), ROOT_DOC_SCHEMA, len(files), len(root_file_content))
         return root_file_content, root_file
 
     @classmethod
@@ -1024,7 +1030,7 @@ class Document(DownloadOperationsSupport):
         """
         try:
             with self.api.download_lock(operation):
-                self.content_data[file.uuid] = get_file_contents(self.api, file.hash, binary=True,
+                self.content_data[file.uuid] = get_file_contents(self.api, file.hash, file.rm_filename, binary=True,
                                                                  stage=DOWNLOAD_CONTENT, operation=operation,
                                                                  auto_finish=False)
         except DownloadOperation.DownloadCancelException:
@@ -1089,7 +1095,7 @@ class Document(DownloadOperationsSupport):
             self.api.finish_download_operation(op)
             return True
         try:
-            data = get_file_contents(self.api, file.hash, binary=True, enforce_cache=True,
+            data = get_file_contents(self.api, file.hash, file.rm_filename, binary=True, enforce_cache=True,
                                      operation=op, auto_finish=False)
         except CacheMiss:
             return False
@@ -1141,7 +1147,7 @@ class Document(DownloadOperationsSupport):
             if file.uuid not in self.content_files:
                 continue
             try:
-                data = get_file_contents(self.api, file.hash, binary=True, enforce_cache=True, update=self)
+                data = get_file_contents(self.api, file.hash, file.rm_filename, binary=True, enforce_cache=True, update=self)
             except CacheMiss:
                 raise
             if data:
