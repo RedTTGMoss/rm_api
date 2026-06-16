@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Union, List, Tuple
 import json
 from crc32c import crc32c
 from rm_api.notifications.models import APIFatal
-from rm_api.storage.v3 import make_storage_request, get_documents_using_root, check_file_exists
+from rm_api.storage.v3 import make_storage_request, get_documents_using_root, check_file_exists, ROOT_DOC_SCHEMA
 
 if TYPE_CHECKING:
     from rm_api import API
