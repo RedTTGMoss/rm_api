@@ -184,6 +184,7 @@ class FileList:
         if new._version == 3:
             new._raw = rest
             new._files = [File.from_line(line) for line in rest]
+            new._update_values()
         elif new._version == 4:
             info_line, *rest = rest
             new._raw = rest
@@ -196,6 +197,7 @@ class FileList:
                 raise ValueError("FileList version 4 only supports root files, the info line includes something else!")
         else:
             raise cls.__unsupported_version_error(new._version)
+        return new
 
     @property
     def files(self):

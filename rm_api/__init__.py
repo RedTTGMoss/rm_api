@@ -15,7 +15,7 @@ from urllib3 import Retry, PoolManager
 
 from .auth import MissingTabletLink, get_token, refresh_token
 from .download_lock import DownloadLock
-from .models import DocumentCollection, Document, Metadata, Content, make_uuid, File, make_hash, Template
+from .models import DocumentCollection, Document, Metadata, Content, make_uuid, File, make_hash, Template, FileList
 from .notifications import handle_notifications
 from .notifications.models import FileSyncProgress, SyncRefresh, DocumentSyncProgress, NewDocuments, APIFatal, \
     DownloadOperation
@@ -368,7 +368,7 @@ class API:
 
         root = self.get_root()  # root info
 
-        _, files = get_file(self, root['hash'], ROOT_DOC_SCHEMA)
+        files = get_file(self, root['hash'], ROOT_DOC_SCHEMA)
         progress.done += 1  # Got root
 
         new_root = {
@@ -389,7 +389,7 @@ class API:
         uuids = [document.uuid for document in documents]
         new_root_files = document_files + [
             file
-            for file in files
+            for file in files.files
             if file.uuid not in uuids
         ]
 
@@ -468,7 +468,7 @@ class API:
 
         # Prepare the root file
         progress.stage = STAGE_PREPARE_ROOT
-        root_file_content, root_file = File.create_root_file(new_root_files)
+        root_file_content, root_file = FileList(new_root_files, is_root=True).get_root_file()
         new_root['hash'] = root_file.hash
 
         files_with_changes.append(root_file)
@@ -543,7 +543,7 @@ class API:
 
         root = self.get_root()  # root info
 
-        _, files = get_file(self, root['hash'], ROOT_DOC_SCHEMA)
+        files = get_file(self, root['hash'], ROOT_DOC_SCHEMA)
         progress.done += 1  # Got root
 
         new_root = {
@@ -555,14 +555,14 @@ class API:
 
         new_root_files = [
             file
-            for file in files
+            for file in files.files
             if file.uuid not in uuids
         ]  # Include all the old data without this data
 
         # Prepare the root file
         progress.stage = STAGE_PREPARE_ROOT
         root_sync_operation = DocumentSyncProgress('root', progress)
-        root_file_content, root_file = File.create_root_file(new_root_files)
+        root_file_content, root_file = FileList(new_root_files, is_root=True).get_root_file()
         new_root['hash'] = root_file.hash
 
         put_file(self, root_file, root_file_content, root_sync_operation)
@@ -618,10 +618,10 @@ class API:
             "generation": root.get('generation', 0)
         }
 
-        root_file_content = b'3\n'
+        root_list = FileList([], is_root=True)
 
-        root_file = models.File(models.make_hash(root_file_content), ROOT_DOC_SCHEMA, 0, len(root_file_content))
+        root_file_content, root_file = root_list.get_root_file()
         new_root['hash'] = root_file.hash
         put_file(self, root_file, root_file_content, DocumentSyncProgress(''))
         update_root(self, new_root)
-        _, files = get_file(self, new_root['hash'], ROOT_DOC_SCHEMA)
+        _ = get_file(self, new_root['hash'], ROOT_DOC_SCHEMA)

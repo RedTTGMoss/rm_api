@@ -37,7 +37,7 @@ ssl_context = ssl.create_default_context(cafile=certifi.where() if os.name == 'd
 
 if TYPE_CHECKING:
     from rm_api import API
-    from rm_api.models import File, Document
+    from rm_api.models import File, Document, FileList
 
 DEFAULT_ENCODING = 'utf-8'
 EXTENSION_ORDER = ['content', 'metadata', 'rm']
@@ -354,7 +354,7 @@ def get_file_legacy(api: 'API', file, filename, use_cache: bool = True, raw: boo
 
 @download_operation_wrapper_with_stage(GET_FILE)
 def get_file(api: 'API', file, filename, use_cache: bool = True, operation: DownloadOperation = None) \
-        -> Optional[models.FileList]:
+        -> Optional['FileList']:
     res = make_files_request(api, "GET", file, filename, use_cache=use_cache, operation=operation)
     if not res:
         return None
@@ -420,7 +420,7 @@ def poll_file(api: 'API', file, filename, binary: bool = False, use_cache: bool 
 
 
 def process_file_content(
-        file_content: List['File'],
+        file_content: 'FileList',
         file: 'File',
         deleted_document_collections_list: Set,
         deleted_documents_list: Set,
@@ -509,7 +509,7 @@ def process_file_content(
 
     content = None
 
-    for item in file_content:
+    for item in file_content.files:
         # If we match the content file, we just store it for later
         if item.uuid == f'{file.uuid}.content':
             try:
@@ -584,12 +584,12 @@ def process_file_content(
                 # We also parse full document contents here into a Content object
                 doc = models.Document(api,
                                       models.Content(content, metadata, item.hash, api.debug),
-                                      metadata, file_content, file.uuid, file.hash)
+                                      metadata, file_content.files, file.uuid, file.hash)
                 handle_document(doc)
                 break  # Finish processing this file, there is no need to continue
             elif metadata.type == DocumentTypes.Template.value:
                 template_data = None
-                for file in file_content:
+                for file in file_content.files:
                     if file.uuid.endswith('.template'):
                         try:
                             template_data = get_file_contents(api, file.hash, file.rm_filename)
@@ -619,9 +619,9 @@ def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: Li
             api.reset_root()
             root = api.get_root().get('hash', 'miss')
             return get_documents_using_root(api, progress, root, priority_file_uuids=priority_file_uuids)
-        version, files = get_file(api, root, ROOT_DOC_SCHEMA)  # Fetch the root file
-        if version == -1 or len(files) == 0:  # Blank root file / Missing
-            if api.offline_mode and version == -1:  # Offline and can't get root
+        files = get_file(api, root, ROOT_DOC_SCHEMA)  # Fetch the root file
+        if not files or files.items == 0:  # Blank root file / Missing
+            if api.offline_mode and not files:  # Offline and can't get root
                 api.spread_event(APIFatal())
                 progress(0, 0)
                 print(
@@ -630,7 +630,9 @@ def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: Li
                     f"{Fore.RESET}{Style.RESET_ALL}"
                 )
                 return None
-            version, files = get_file(api, root, ROOT_DOC_SCHEMA, False)  # Force refetch
+            files = get_file(api, root, ROOT_DOC_SCHEMA, False)  # Force refetch
+            if not files:
+                return None
     except DownloadOperation.DownloadCancelException:  # Cancelled by user
         progress(0, 0)
         return None
@@ -657,7 +659,7 @@ def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: Li
 
     # We prioritize any files first
     if priority_file_uuids:
-        files.sort(
+        files.files.sort(
             key=lambda file:
             priority_file_uuids.index(file.uuid)
             if file.uuid in priority_file_uuids
@@ -665,7 +667,7 @@ def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: Li
         )
 
     # We mark the progress of the fetch
-    total = len(files)
+    total = files.items
     count = 0
     progress(0, total)
 
@@ -674,12 +676,12 @@ def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: Li
 
     def handle_file(file: 'File'):  # This refers to one file from the root
         nonlocal count, total
-        _, file_content = get_file(api, file.hash, file.rm_filename)  # Get the file content listing
+        file_content = get_file(api, file.hash, file.rm_filename)  # Get the file content listing
         file_cache.add(file.hash)
 
         # Check the hash in case it needs fixing
         document_file_hash = sha256()
-        for item in sorted(file_content, key=lambda item: file.uuid):
+        for item in sorted(file_content.files, key=lambda item: file.uuid):
             file_cache.add(item.hash)
             document_file_hash.update(bytes.fromhex(item.hash))
         expected_hash = document_file_hash.hexdigest()
@@ -722,7 +724,7 @@ def get_documents_using_root(api: 'API', progress, root, priority_file_uuids: Li
         #     executor.shutdown(wait=True)
         batch_size = 100
         with ThreadPoolExecutor() as executor:
-            for batch in batched(files, batch_size):
+            for batch in batched(files.files, batch_size):
                 executor.map(handle_file_and_check_for_errors if api.debug else handle_file, batch)
     except RuntimeError:
         return None
