@@ -66,7 +66,7 @@ def try_to_load_int(rm_value: Union[str, int], default: int = 0):
 
 
 class File:
-    def __init__(self, file_hash: str, file_uuid: str, content_count: str, file_size: Union[str, int],
+    def __init__(self, file_hash: str, file_uuid: str, content_count: Union[str, int], file_size: Union[str, int],
                  rm_filename=None):
         self.hash = file_hash
         self.uuid = file_uuid
@@ -82,9 +82,9 @@ class File:
             else:
                 self.rm_filename = self.uuid
 
-
     @classmethod
     def create_root_file(cls, files: List['File']) -> Tuple[bytes, 'File']:
+        raise DeprecationWarning("create_root_file is deprecated, use FileList instead")
         root_file_content = ['3\n']
         root_file_hash = sha256()
         for file in sorted(files, key=lambda _: _.uuid):
@@ -105,10 +105,13 @@ class File:
         return cls(data['hash'], data['uuid'], data['content_count'], data['file_size'], data.get('rm_filename'))
 
     def to_root_line(self):
-        return f'{self.hash}:80000000:{self.uuid}:{self.content_count}:{self.size}\n'
+        return self.to_line_type(80000000)
 
     def to_line(self):
-        return f'{self.hash}:0:{self.uuid}:{self.content_count}:{self.size}\n'
+        return self.to_line_type(0)
+
+    def to_line_type(self, line_type: int = 0):
+        return f'{self.hash}:{line_type}:{self.uuid}:{self.content_count}:{self.size}\n'
 
     def update_document_file(self, api: 'API', files: List['File'], content_datas: Dict[str, Any]) -> bytes:
         document_file_content = ['3\n']
@@ -150,6 +153,106 @@ class File:
 
     def __deepcopy__(self, memo=None):
         return self.from_line(self.to_line())
+
+
+class FileList:
+    SUPPORTED_VERSIONS = (3, 4)
+
+    def __init__(self, files: List[File], version: int = 4, is_root: bool = True):
+        self._files = files
+        self._raw = [file.to_line() for file in self.files]
+        if not is_root and version == 4:
+            version = 3
+        self._version = version
+        self.is_root = is_root
+        self.size = -1
+        self.items = -1
+        if version not in self.SUPPORTED_VERSIONS:
+            raise self.__unsupported_version_error(version)
+        self._update_values()
+
+    def _update_values(self):
+        self.size = sum(file.size for file in self.files)
+        self.items = len(self.files)
+
+    @classmethod
+    def from_raw(cls, raw: str, is_root: bool = False):
+        version, *rest = raw.splitlines()
+        new = cls([])
+        new._version = int(version)
+        new.is_root = is_root
+        if new._version == 3:
+            new._raw = rest
+            new._files = [File.from_line(line) for line in rest]
+        elif new._version == 4:
+            info_line, *rest = rest
+            new._raw = rest
+            new._files = [File.from_line(line) for line in rest]
+
+            info_line = info_line.split(':')
+            new.size = int(info_line[-1])
+            new.items = int(info_line[-2])
+            if info_line[-3] != '.':  # Not the root file
+                raise ValueError("FileList version 4 only supports root files, the info line includes something else!")
+        else:
+            raise cls.__unsupported_version_error(new._version)
+
+    @property
+    def files(self):
+        return self._files
+
+    @property
+    def raw(self):
+        return self._raw
+
+    @files.setter
+    def files(self, value: List[File]):
+        self._files = value
+        self._raw = [file.to_line() for file in self.files]
+        self._update_values()
+
+    def add_file(self, file: File):
+        self._files.append(file)
+        self._raw.append(file.to_line())
+        self.size += file.size
+        self.items += 1
+
+    def add_files(self, files: List[File]):
+        self._files.extend(files)
+        self._raw.extend([file.to_line() for file in files])
+        self._update_values()
+
+    def to_raw(self) -> str:
+        if self._version == 3:
+            # Old version that just has a list of files
+            return ''.join(['3\n'] + self._raw)
+        elif self._version == 4:
+            # New version with a bit of extra metadata
+            info_line = f'0:.:{self.items}:{self.size}\n'
+            return ''.join(['4\n', info_line] + self._raw)
+        else:
+            raise self.__unsupported_version_error(self._version)
+
+    def get_root_hash(self) -> str:
+        root_file_hash = sha256()
+        for file in sorted(self._files, key=lambda _: _.uuid):
+            root_file_hash.update(bytes.fromhex(file.hash))
+
+        return root_file_hash.hexdigest()
+
+    def get_root_file(self) -> Tuple[bytes, File]:
+        root_file_contents = self.to_raw().encode()
+        root_file_hash = self.get_root_hash()
+
+        root_file = File(root_file_hash, ROOT_DOC_SCHEMA, len(self._files), len(root_file_contents))
+        return root_file_contents, root_file
+
+    @classmethod
+    def __unsupported_version_error(cls, version):
+        return ValueError(
+            f"FileList version is invalid! Passed version: {version} ; "
+            f"Supported versions are {', '.join(map(str, cls.SUPPORTED_VERSIONS))}"
+        )
 
 
 # noinspection PyTypeHints
@@ -975,7 +1078,6 @@ class Document(DownloadOperationsSupport):
             if not any(file.uuid.endswith(file_type) for file_type in self.ALL_FILE_TYPES):
                 print(f'{Fore.YELLOW}Unknown content file type for file {file.uuid}{Fore.RESET}')
 
-
         if check:
             self.check()
 
@@ -1083,6 +1185,7 @@ class Document(DownloadOperationsSupport):
                 self.api.download_lock.task_condition.wait()
             for operation in operations:
                 self.api.finish_download_operation(operation)
+
     def _handle_finishing_load_operations(self, operations: List[DownloadOperation]):
         for operation in operations:
             self.api.finish_download_operation(operation)
@@ -1147,7 +1250,8 @@ class Document(DownloadOperationsSupport):
             if file.uuid not in self.content_files:
                 continue
             try:
-                data = get_file_contents(self.api, file.hash, file.rm_filename, binary=True, enforce_cache=True, update=self)
+                data = get_file_contents(self.api, file.hash, file.rm_filename, binary=True, enforce_cache=True,
+                                         update=self)
             except CacheMiss:
                 raise
             if data:
@@ -1388,6 +1492,7 @@ class Document(DownloadOperationsSupport):
         new.metadata.created_time = now_time_int()
         new.provision = True
         return new
+
 
 class Template:
     def __init__(self, template_data, metadata: Metadata, uuid: str, server_hash: str = None):

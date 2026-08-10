@@ -103,7 +103,8 @@ def make_storage_request(api: 'API', method, request, data: dict = None) -> Unio
         return response.text
 
 
-def make_files_request(api: 'API', method, file: str, filename: str, data: dict = None, binary: bool = False, use_cache: bool = True,
+def make_files_request(api: 'API', method, file: str, filename: str, data: dict = None, binary: bool = False,
+                       use_cache: bool = True,
                        enforce_cache: bool = False, operation: DownloadOperation = None) -> \
         Union[str, None, dict, bool, bytes]:
     if method == 'HEAD':
@@ -164,7 +165,8 @@ def make_files_request(api: 'API', method, file: str, filename: str, data: dict 
     elif not response.ok:
         response.close()
         operation.stage = MISSING_CONTENT
-        raise Exception(f"Failed to make files request - {response.status_code}\n{response.text or operation.first_chunk}")
+        raise Exception(
+            f"Failed to make files request - {response.status_code}\n{response.text or operation.first_chunk}")
 
     if api.indexer.allow_write:
         try:
@@ -329,7 +331,8 @@ def put_file(api: 'API', file: 'File', data: bytes, sync_event: DocumentSyncProg
 
 
 @download_operation_wrapper_with_stage(GET_FILE)
-def get_file(api: 'API', file, filename, use_cache: bool = True, raw: bool = False, operation: DownloadOperation = None) -> Tuple[
+def get_file_legacy(api: 'API', file, filename, use_cache: bool = True, raw: bool = False,
+                    operation: DownloadOperation = None) -> Tuple[
     int, Union[List['File'], List[str]]]:
     res = make_files_request(api, "GET", file, filename, use_cache=use_cache, operation=operation)
     if not res:
@@ -349,10 +352,21 @@ def get_file(api: 'API', file, filename, use_cache: bool = True, raw: bool = Fal
     return version, files
 
 
+@download_operation_wrapper_with_stage(GET_FILE)
+def get_file(api: 'API', file, filename, use_cache: bool = True, operation: DownloadOperation = None) \
+        -> Optional[models.FileList]:
+    res = make_files_request(api, "GET", file, filename, use_cache=use_cache, operation=operation)
+    if not res:
+        return None
+    return models.FileList.from_raw(res, is_root=filename == ROOT_DOC_SCHEMA)
+
+
 @download_operation_wrapper_with_stage(GET_CONTENTS)
-def get_file_contents(api: 'API', file, filename, binary: bool = False, use_cache: bool = True, enforce_cache: bool = False,
+def get_file_contents(api: 'API', file, filename, binary: bool = False, use_cache: bool = True,
+                      enforce_cache: bool = False,
                       operation: DownloadOperation = None):
-    return make_files_request(api, "GET", file, filename, binary=binary, use_cache=use_cache, enforce_cache=enforce_cache,
+    return make_files_request(api, "GET", file, filename, binary=binary, use_cache=use_cache,
+                              enforce_cache=enforce_cache,
                               operation=operation)
 
 
@@ -588,7 +602,6 @@ def process_file_content(
                 doc = models.Template(template_data, metadata, file.uuid, file.hash)
 
                 handle_template(doc)
-
 
         # Any other files here can be skipped, they aren't relevant
 
