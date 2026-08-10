@@ -339,7 +339,14 @@ def get_file(api: 'API', file, filename, use_cache: bool = True, raw: bool = Fal
     version, *lines = res.splitlines()
     if raw:
         return version, lines
-    return version, [models.File.from_line(line) for line in lines]
+    files = []
+    for line in lines:
+        try:
+            file = models.File.from_line(line)
+            files.append(file)
+        except Exception as e:
+            api.log(f"Failed to parse file line: {line} -> {e}")
+    return version, files
 
 
 @download_operation_wrapper_with_stage(GET_CONTENTS)
