@@ -1,5 +1,7 @@
+import os
+
 from rm_api import models, make_hash
-from .common import TestWithData
+from .common import TestWithData, test_pdf_file, test_epub_file
 from ..defaults import ZoomModes
 
 
@@ -39,3 +41,69 @@ class TestModels(TestWithData):
             self.assertEqual(mode, content.zoom.zoom_mode,
                              f"Zoom mode should be {mode}")
             self.assertEqual(content._content, output, "Content should be the same")
+
+    def test_005_local_document_new_notebook(self):
+        temp_dir = self.create_temp_dir()
+        document = models.LocalDocument.new_notebook("Test Notebook", temp_dir)
+        try:
+            document.export_and_save()
+            self.fail("Expected ValueError when exporting without specifying a directory and no local dir set")
+        except ValueError:
+            pass
+        document.export_and_save(temp_dir)
+
+        # Verify files
+        expected_files = [
+            os.path.join(f"{document.uuid}", f"{document.content.c_pages.pages[0].id}.rm"),
+            f"{document.uuid}.metadata",
+            f"{document.uuid}.content",
+        ]
+        for file in expected_files:
+            file_path = os.path.join(temp_dir, file)
+            self.assertTrue(os.path.exists(file_path), f"Expected file {file_path} to exist")
+
+    def test_006_local_document_new_pdf(self):
+        temp_dir = self.create_temp_dir()
+        document = models.LocalDocument.new_pdf("Test PDF", test_pdf_file, temp_dir)
+        try:
+            document.export_and_save()
+            self.fail("Expected ValueError when exporting without specifying a directory and no local dir set")
+        except ValueError:
+            pass
+        document.export_and_save(temp_dir)
+
+        # Verify files
+        expected_files = [
+            f"{document.uuid}.pdf",
+            f"{document.uuid}.metadata",
+            f"{document.uuid}.content",
+        ]
+        for file in os.walk(temp_dir):
+            print(file)
+
+        for file in expected_files:
+            file_path = os.path.join(temp_dir, file)
+            self.assertTrue(os.path.exists(file_path), f"Expected file {file_path} to exist")
+
+    def test_007_local_document_new_epub(self):
+        temp_dir = self.create_temp_dir()
+        document = models.LocalDocument.new_epub("Test EPUB", test_epub_file, temp_dir)
+        try:
+            document.export_and_save()
+            self.fail("Expected ValueError when exporting without specifying a directory and no local dir set")
+        except ValueError:
+            pass
+        document.export_and_save(temp_dir)
+
+        # Verify files
+        expected_files = [
+            f"{document.uuid}.epub",
+            f"{document.uuid}.metadata",
+            f"{document.uuid}.content",
+        ]
+        for file in os.walk(temp_dir):
+            print(file)
+
+        for file in expected_files:
+            file_path = os.path.join(temp_dir, file)
+            self.assertTrue(os.path.exists(file_path), f"Expected file {file_path} to exist")

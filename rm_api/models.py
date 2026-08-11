@@ -12,6 +12,7 @@ from functools import lru_cache
 from hashlib import sha256
 from io import BytesIO
 from itertools import zip_longest
+from pathlib import Path
 from typing import List, TYPE_CHECKING, Generic, T, Union, TypedDict, Dict, Optional, Tuple, Any
 
 from colorama import Fore
@@ -1058,17 +1059,18 @@ class Document(DownloadOperationsSupport):
     files: List[File]
     content_data: Dict[str, bytes]
 
-    def __init__(self, api: 'API', content: Content, metadata: Metadata, files: List[File], uuid: str,
+    def __init__(self, api: Optional['API'], content: Content, metadata: Metadata, files: List[File], uuid: str,
                  server_hash: str = None, check: bool = True):
         super().__init__()
         self.api = api
+        self.local = not self.api
         self.content = content
         self.metadata = metadata
         self.files = files
         self._uuid = uuid
         self.server_hash = server_hash
         self.content_data = {}
-        self.files_available: Dict[str, File] = self.check_files_availability()
+        self.files_available: Dict[str, File] = self.check_files_availability() if self.api else {}
         self.provision = False  # Used during sync to disable opening or exporting the file!!!
 
         if self.content.file_type not in self.KNOWN_FILE_TYPES and \
@@ -1120,6 +1122,13 @@ class Document(DownloadOperationsSupport):
     def file_uuid_map(self):
         return {
             file.uuid: file
+            for file in self.files
+        }
+
+    @property
+    def file_hash_map(self):
+        return {
+            file.hash: file
             for file in self.files
         }
 
@@ -1248,6 +1257,14 @@ class Document(DownloadOperationsSupport):
             del self.content_data[file_uuid]
 
     def load_files_from_cache(self):
+        if self.local:
+            for file in self.files:
+                if file.uuid not in self.content_files:
+                    continue
+                file = self.get_file(file.hash)
+                with open(file, 'rb') as f:
+                    self.content_data[file.uuid] = f.read()
+            return
         for file in self.files:
             if file.uuid not in self.content_files:
                 continue
@@ -1267,19 +1284,23 @@ class Document(DownloadOperationsSupport):
 
     def ensure_download(self):
         if not self.available:
+            if self.local:
+                raise FileNotFoundError('Document is not available locally')
             self._download_files()
         else:
+            if self.local:
+                return self.load_files_from_cache()
             self._load_files()
 
     def check_files_availability(self) -> Dict[str, File]:
-        if not self.api.sync_file_path:
+        if not self.local and not self.api.sync_file_path:
             return {}
         available = {}
         for file in self.files:
             if file.uuid in self.content_data:  # Check if the file was loaded (could be a new file)
                 available[file.uuid] = file
                 continue
-            if os.path.exists(os.path.join(self.api.sync_file_path, file.hash)):  # Check if the file was cached
+            if os.path.exists(self.get_file(file.hash)):  # Check if the file was cached
                 available[file.uuid] = file
                 continue
         return available
@@ -1304,16 +1325,18 @@ class Document(DownloadOperationsSupport):
         self.content.check(self)
 
     @classmethod
-    def new_notebook(cls, api: 'API', name: str, parent: str = None, document_uuid: str = None, page_count: int = 1,
+    def new_notebook(cls, api: Optional['API'], name: str, parent: str = None, document_uuid: str = None,
+                     page_count: int = 1,
                      notebook_data: List[Union[bytes, FileHandle]] = [], metadata: Metadata = None,
                      content: Content = None) -> 'Document':
         if not (write_blocks or blank_document):
             raise ImportError('rm_lines is not available, please install rm_lines to use this feature')
         metadata = Metadata.new(name, parent) if not metadata else metadata
-        content = Content.new_notebook(api.author_id, page_count) if not content else content
+        author_id = api.author_id if api else make_uuid()
+        content = Content.new_notebook(author_id, page_count) if not content else content
 
         blank_notebook_buffer = BytesIO()
-        write_blocks(blank_notebook_buffer, blank_document(api.author_id))
+        write_blocks(blank_notebook_buffer, blank_document(author_id))
         blank_notebook = blank_notebook_buffer.getvalue()
 
         if document_uuid is None:
@@ -1345,7 +1368,7 @@ class Document(DownloadOperationsSupport):
         return document
 
     @classmethod
-    def new_pdf(cls, api: 'API', name: str, pdf_data: bytes, parent: str = None, document_uuid: str = None):
+    def new_pdf(cls, api: Optional['API'], name: str, pdf_data: bytes, parent: str = None, document_uuid: str = None):
         if document_uuid is None:
             document_uuid = make_uuid()
         content = Content.new_pdf()
@@ -1378,7 +1401,7 @@ class Document(DownloadOperationsSupport):
         return document
 
     @classmethod
-    def new_epub(cls, api: 'API', name: str, epub_data: bytes, parent: str = None, document_uuid: str = None):
+    def new_epub(cls, api: Optional['API'], name: str, epub_data: bytes, parent: str = None, document_uuid: str = None):
         if document_uuid is None:
             document_uuid = make_uuid()
         content = Content.new_epub()
@@ -1494,6 +1517,80 @@ class Document(DownloadOperationsSupport):
         new.metadata.created_time = now_time_int()
         new.provision = True
         return new
+
+    def get_file(self, file_hash: str):
+        return os.path.join(self.api.sync_file_path, file_hash)
+
+
+# noinspection PyMethodOverriding
+class LocalDocument(Document):
+    local_dir: str
+
+    def __init__(self, content: Content, metadata: Metadata, files: List[File], uuid: str):
+        super().__init__(None, content, metadata, files, uuid, None)
+        self.local = True
+        self.__init()
+
+    def __init(self):
+        self.local_dir = None
+        self.check_files_availability()
+
+    @classmethod
+    def new_notebook(cls, name: str, parent: str = None, document_uuid: str = None,
+                     page_count: int = 1,
+                     notebook_data: List[Union[bytes, FileHandle]] = [], metadata: Metadata = None,
+                     content: Content = None) -> 'LocalDocument':
+        new: Document = Document.new_notebook(None, name, parent, document_uuid, page_count, notebook_data, metadata,
+                                             content)
+        new.__class__ = cls
+        new: LocalDocument
+        new.__init()
+        return new
+
+    @classmethod
+    def new_pdf(cls, name: str, pdf_file: str, parent: str = None, document_uuid: str = None) -> 'LocalDocument':
+        with open(pdf_file, 'rb') as f:
+            pdf_data = f.read()
+        new: Document = Document.new_pdf(None, name, pdf_data, parent, document_uuid)
+        new.__class__ = cls
+        new: LocalDocument
+        new.__init()
+        return new
+
+    @classmethod
+    def new_epub(cls, name: str, epub_file: str, parent: str = None, document_uuid: str = None) -> 'LocalDocument':
+        with open(epub_file, 'rb') as f:
+            epub_data = f.read()
+        new: Document = Document.new_epub(None, name, epub_data, parent, document_uuid)
+        new.__class__ = cls
+        new: LocalDocument
+        new.__init()
+        return new
+
+    def export_and_save(self, export_dir: str = None):
+        if not export_dir:
+            self._check_local_dir()
+            export_dir = self.local_dir
+        if not os.path.exists(export_dir):
+            os.makedirs(export_dir)
+        self.export()
+        for file in self.files:
+            file_path = os.path.join(export_dir, file.uuid)
+            os.makedirs(Path(file_path).parent, exist_ok=True)  # for nested directories
+            with open(file_path, 'wb') as f:
+                f.write(self.content_data[file.uuid])
+        self.local_dir = export_dir
+
+    def _check_local_dir(self):
+        if not self.local_dir and self.available:
+            raise ValueError("Document is only available in memory, no local directory is set.")
+        elif not os.path.exists(self.local_dir):
+            raise FileNotFoundError(f"Local directory {self.local_dir} does not exist.")
+
+    def get_file(self, file_hash: str):
+        self._check_local_dir()
+        uuid = self.file_hash_map[file_hash].uuid
+        return os.path.join(self.local_dir, uuid)
 
 
 class Template:

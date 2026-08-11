@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 from unittest import TestCase
 
 from rm_api import models, make_hash
@@ -8,6 +9,9 @@ script_folder = os.path.dirname(__file__)
 files_folder = os.path.join(script_folder, 'files')
 content_folder = os.path.join(files_folder, 'content')
 metadata_folder = os.path.join(files_folder, 'metadata')
+extra_folder = os.path.join(files_folder, 'extra')
+test_pdf_file = os.path.join(extra_folder, 'test.pdf')
+test_epub_file = os.path.join(extra_folder, 'test.epub')
 
 
 class TestWithData(TestCase):
@@ -33,3 +37,9 @@ class TestWithData(TestCase):
     def make_content(self, name):
         metadata = models.Metadata.new('random', None)
         return models.Content(self.content_files[name], metadata, make_hash(self.content_files[name]), True)
+
+    def create_temp_dir(self):
+        import tempfile
+        temp_dir = tempfile.mkdtemp()
+        self.addCleanup(lambda: shutil.rmtree(temp_dir, ignore_errors=True))
+        return temp_dir
