@@ -19,8 +19,8 @@ _ = api.token
 
 def get_documents(d):
     def progress(done, total):
-        d['done'] = done
-        d['total'] = total
+        d["done"] = done
+        d["total"] = total
 
     start = time.time()
     api.get_documents(progress)
@@ -30,11 +30,11 @@ def get_documents(d):
 def measure(msg):
     with SlashR(False) as sr:
         print(msg)
-        d = {'done': 0, 'total': 0}
+        d = {"done": 0, "total": 0}
         Thread(target=get_documents, args=(d,)).start()
-        while d['total'] <= 0:
+        while d["total"] <= 0:
             time.sleep(0.1)
-        while d['done'] < d['total']:
+        while d["done"] < d["total"]:
             sr.print(f"Downloaded {d['done']} / {d['total']}")
             time.sleep(0.1)
         sr.print(f"Downloaded {d['done']} / {d['total']}")

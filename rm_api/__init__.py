@@ -15,10 +15,26 @@ from urllib3 import Retry, PoolManager
 
 from .auth import MissingTabletLink, get_token, refresh_token
 from .download_lock import DownloadLock
-from .models import DocumentCollection, Document, Metadata, Content, make_uuid, File, make_hash, Template, FileList
+from .models import (
+    DocumentCollection,
+    Document,
+    Metadata,
+    Content,
+    make_uuid,
+    File,
+    make_hash,
+    Template,
+    FileList,
+)
 from .notifications import handle_notifications
-from .notifications.models import FileSyncProgress, SyncRefresh, DocumentSyncProgress, NewDocuments, APIFatal, \
-    DownloadOperation
+from .notifications.models import (
+    FileSyncProgress,
+    SyncRefresh,
+    DocumentSyncProgress,
+    NewDocuments,
+    APIFatal,
+    DownloadOperation,
+)
 from .object_indexing.file_based_indexing import FileObjectIndexer
 from .object_indexing.db_based_indexing import DBObjectIndexer
 from .storage.common import get_document_storage_uri, get_document_notifications_uri
@@ -27,14 +43,23 @@ from .storage.new_sync import get_documents_new_sync, handle_new_api_steps
 from .storage.new_sync import get_root as get_root_new
 from .storage.old_sync import get_documents_old_sync, update_root, RootUploadFailure
 from .storage.old_sync import get_root as get_root_old
-from .storage.v3 import get_documents_using_root, get_file, get_file_contents, make_files_request, put_file, \
-    check_file_exists, ROOT_DOC_SCHEMA
+from .storage.v3 import (
+    get_documents_using_root,
+    get_file,
+    get_file_contents,
+    make_files_request,
+    put_file,
+    check_file_exists,
+    ROOT_DOC_SCHEMA,
+)
 from .sync_stages import *
 
 colorama.init()
 
 DEFAULT_REMARKABLE_URI = "https://webapp.cloud.remarkable.com/"
-DEFAULT_REMARKABLE_DISCOVERY_URI = "https://service-manager-production-dot-remarkable-production.appspot.com/"
+DEFAULT_REMARKABLE_DISCOVERY_URI = (
+    "https://service-manager-production-dot-remarkable-production.appspot.com/"
+)
 
 
 def retry_on_version_bump(fn):
@@ -59,14 +84,23 @@ class API:
     documents: Dict[str, Document]
     templates: Dict[str, Template]
 
-    def __init__(self, require_token: bool = True, token_file_path: str = 'token', sync_file_path: str = 'sync',
-                 uri: str = None, discovery_uri: str = None, author_id: str = None, log_file='rm_api.log', ask_reset: bool = False):
+    def __init__(
+        self,
+        require_token: bool = True,
+        token_file_path: str = "token",
+        sync_file_path: str = "sync",
+        uri: str = None,
+        discovery_uri: str = None,
+        author_id: str = None,
+        log_file="rm_api.log",
+        ask_reset: bool = False,
+    ):
         self.retry_strategy = Retry(
-            total=10,
-            backoff_factor=2,
-            status_forcelist=(429, 503)
+            total=10, backoff_factor=2, status_forcelist=(429, 503)
         )
-        http_adapter = HTTPAdapter(max_retries=self.retry_strategy, pool_maxsize=35, pool_block=True)
+        http_adapter = HTTPAdapter(
+            max_retries=self.retry_strategy, pool_maxsize=35, pool_block=True
+        )
         self.session = requests.Session()
         self.session.mount("http://", http_adapter)
         self.session.mount("https://", http_adapter)
@@ -77,7 +111,11 @@ class API:
         else:
             self.author_id = author_id
         self.uri = uri or os.environ.get("URI", DEFAULT_REMARKABLE_URI)
-        self.discovery_uri = discovery_uri or os.environ.get("DISCOVERY_URI", DEFAULT_REMARKABLE_DISCOVERY_URI) or DEFAULT_REMARKABLE_DISCOVERY_URI
+        self.discovery_uri = (
+            discovery_uri
+            or os.environ.get("DISCOVERY_URI", DEFAULT_REMARKABLE_DISCOVERY_URI)
+            or DEFAULT_REMARKABLE_DISCOVERY_URI
+        )
         self.sync_file_path = sync_file_path
         if self.sync_file_path is not None:
             os.makedirs(self.sync_file_path, exist_ok=True)
@@ -131,9 +169,12 @@ class API:
         self.log_lock = threading.Lock()
 
         # Set up logging configuration
-        logging.basicConfig(filename=self.log_file, level=logging.INFO,
-                            format='%(asctime)s - %(message)s',
-                            filemode='a')  # 'a' for append mode
+        logging.basicConfig(
+            filename=self.log_file,
+            level=logging.INFO,
+            format="%(asctime)s - %(message)s",
+            filemode="a",
+        )  # 'a' for append mode
         self.loop = self._get_or_create_event_loop()
 
     @staticmethod
@@ -155,14 +196,15 @@ class API:
 
     @property
     def online_download_operations(self):
-        return [op for op in list(self.download_operations) if op.stage in (
-            DOWNLOAD_CONTENT,
-            GET_CONTENTS
-        )]
+        return [
+            op
+            for op in list(self.download_operations)
+            if op.stage in (DOWNLOAD_CONTENT, GET_CONTENTS)
+        ]
 
     def force_stop_all(self):
         for operation in list(self.download_operations):
-            self.cancel_download_operation(operation, reason='force stop')
+            self.cancel_download_operation(operation, reason="force stop")
         self.download_lock.stop()
 
     def add_download_operation(self, operation: DownloadOperation):
@@ -191,7 +233,9 @@ class API:
         operation.finish()
         self.spread_event(operation.finish_event)
 
-    def cancel_download_operation(self, operation: DownloadOperation, reason: str = 'canceled'):
+    def cancel_download_operation(
+        self, operation: DownloadOperation, reason: str = "canceled"
+    ):
         self.remove_download_operation(operation)
         operation.cancel(reason)
         self.spread_event(operation.cancel_event)
@@ -200,7 +244,9 @@ class API:
     def downloading(self):
         if len(self.download_operations) == 0:
             return False
-        return any(not op.finished for op in self.online_download_operations if not op.canceled)
+        return any(
+            not op.finished for op in self.online_download_operations if not op.canceled
+        )
 
     @property
     def download_done(self):
@@ -208,7 +254,9 @@ class API:
 
     @property
     def download_total(self):
-        return sum(op.total for op in self.online_download_operations if not op.canceled)
+        return sum(
+            op.total for op in self.online_download_operations if not op.canceled
+        )
 
     def reconnect(self):
         self.connected_to_notifications = False
@@ -257,12 +305,18 @@ class API:
         self.set_token(get_token(self, code, remarkable), remarkable)
 
     @retry_on_version_bump
-    def get_documents(self, progress=lambda d, i: None, priority_file_uuids: List[str] = None):
+    def get_documents(
+        self, progress=lambda d, i: None, priority_file_uuids: List[str] = None
+    ):
         self.check_for_document_storage()
         if self.use_new_sync:
-            get_documents_new_sync(self, progress, priority_file_uuids=priority_file_uuids)
+            get_documents_new_sync(
+                self, progress, priority_file_uuids=priority_file_uuids
+            )
         else:
-            get_documents_old_sync(self, progress, priority_file_uuids=priority_file_uuids)
+            get_documents_old_sync(
+                self, progress, priority_file_uuids=priority_file_uuids
+            )
 
     @retry_on_version_bump
     def get_root(self):
@@ -295,20 +349,29 @@ class API:
             uri = get_document_storage_uri(self)
             if not uri:
                 return
-            elif uri == 'local.appspot.com':
+            elif uri == "local.appspot.com":
                 uri = self.uri
             else:
                 if not uri.endswith("/"):
                     uri += "/"
-                uri = f'https://{uri}'
+                uri = f"https://{uri}"
 
             self.document_storage_uri = uri
 
-    def upload(self, document: Union[Document, DocumentCollection], callback=None, unload: bool = False):
+    def upload(
+        self,
+        document: Union[Document, DocumentCollection],
+        callback=None,
+        unload: bool = False,
+    ):
         self.upload_many_documents([document], callback, unload)
 
-    def upload_many_documents(self, documents: List[Union[Document, DocumentCollection]], callback=None,
-                              unload: bool = False):
+    def upload_many_documents(
+        self,
+        documents: List[Union[Document, DocumentCollection]],
+        callback=None,
+        unload: bool = False,
+    ):
         self.sync_notifiers += 1
         self._upload_lock.acquire()
         upload_event = FileSyncProgress()
@@ -325,15 +388,24 @@ class API:
             if unload:
                 for document in documents:
                     document.unload_files()
-            time.sleep(.1)
+            time.sleep(0.1)
             self._upload_lock.release()
             self.sync_notifiers -= 1
 
-    def delete(self, document: Union[Document, DocumentCollection], callback=None, unload: bool = True):
+    def delete(
+        self,
+        document: Union[Document, DocumentCollection],
+        callback=None,
+        unload: bool = True,
+    ):
         self.delete_many_documents([document], callback, unload)
 
-    def delete_many_documents(self, documents: List[Union[Document, DocumentCollection]], callback=None,
-                              unload: bool = True):
+    def delete_many_documents(
+        self,
+        documents: List[Union[Document, DocumentCollection]],
+        callback=None,
+        unload: bool = True,
+    ):
         self.sync_notifiers += 1
         self._upload_lock.acquire()
         upload_event = FileSyncProgress()
@@ -348,12 +420,15 @@ class API:
             if unload:
                 for document in documents:
                     document.unload_files()
-            time.sleep(.1)
+            time.sleep(0.1)
             self._upload_lock.release()
             self.sync_notifiers -= 1
 
-    def _upload_document_contents(self, documents: List[Union[Document, DocumentCollection]],
-                                  progress: FileSyncProgress):
+    def _upload_document_contents(
+        self,
+        documents: List[Union[Document, DocumentCollection]],
+        progress: FileSyncProgress,
+    ):
         # We need to upload the content, metadata, rm file, file list and update root
         # This is the order that remarkable expects the upload to happen in, anything else and they might detect it as
         # API tampering, so we want to follow their upload cycle
@@ -368,29 +443,25 @@ class API:
 
         root = self.get_root()  # root info
 
-        files = get_file(self, root['hash'], ROOT_DOC_SCHEMA)
+        files = get_file(self, root["hash"], ROOT_DOC_SCHEMA)
         progress.done += 1  # Got root
 
-        new_root = {
-            "broadcast": True,
-            "generation": root['generation']
-        }
+        new_root = {"broadcast": True, "generation": root["generation"]}
 
         document_files = [
             File(
                 None,
                 document.uuid,
-                len(document.files), 0,
-                f"{document.uuid}.docSchema"
+                len(document.files),
+                0,
+                f"{document.uuid}.docSchema",
             )
             for document in documents
         ]
 
         uuids = [document.uuid for document in documents]
         new_root_files = document_files + [
-            file
-            for file in files.files
-            if file.uuid not in uuids
+            file for file in files.files if file.uuid not in uuids
         ]
 
         old_files = []
@@ -402,14 +473,20 @@ class API:
             document.export()
             document.provision = True
             progress.total += len(document.files)
-        self.documents.update({
-            document.uuid: document
-            for document in documents if isinstance(document, Document)
-        })
-        self.document_collections.update({
-            document_collection.uuid: document_collection
-            for document_collection in documents if isinstance(document_collection, DocumentCollection)
-        })
+        self.documents.update(
+            {
+                document.uuid: document
+                for document in documents
+                if isinstance(document, Document)
+            }
+        )
+        self.document_collections.update(
+            {
+                document_collection.uuid: document_collection
+                for document_collection in documents
+                if isinstance(document_collection, DocumentCollection)
+            }
+        )
         self.spread_event(NewDocuments())
 
         # Figure out what files have changed
@@ -418,7 +495,9 @@ class API:
 
         def check_file(file: File):
             try:
-                exists = check_file_exists(self, file.hash, file.rm_filename, binary=True, use_cache=False)
+                exists = check_file_exists(
+                    self, file.hash, file.rm_filename, binary=True, use_cache=False
+                )
                 if not exists:
                     files_with_changes.append(file)
                 else:
@@ -433,10 +512,7 @@ class API:
                 files_to_check.append(file)
 
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [
-                executor.submit(check_file, file)
-                for file in files_to_check
-            ]
+            futures = [executor.submit(check_file, file) for file in files_to_check]
 
             for future in futures:
                 future.result()
@@ -460,7 +536,9 @@ class API:
         progress.stage = STAGE_COMPILE_DATA
 
         for document, document_file in zip(documents, document_files):
-            document_file_content = document_file.update_document_file(self, document.files, content_datas)
+            document_file_content = document_file.update_document_file(
+                self, document.files, content_datas
+            )
 
             # Add the document file to the content_data
             content_datas[document_file.uuid] = document_file_content
@@ -468,8 +546,10 @@ class API:
 
         # Prepare the root file
         progress.stage = STAGE_PREPARE_ROOT
-        root_file_content, root_file = FileList(new_root_files, is_root=True).get_root_file()
-        new_root['hash'] = root_file.hash
+        root_file_content, root_file = FileList(
+            new_root_files, is_root=True
+        ).get_root_file()
+        new_root["hash"] = root_file.hash
 
         files_with_changes.append(root_file)
         content_datas[root_file.uuid] = root_file_content
@@ -490,31 +570,43 @@ class API:
         with ThreadPoolExecutor(max_workers=4) as executor:
             loop = asyncio.new_event_loop()  # Get the current event loop
             for file in sorted(files_with_changes, key=lambda f: f.size):
-                if (document_uuid := file.uuid.split('/')[0].split('.')[0]) in document_operations:
+                if (
+                    document_uuid := file.uuid.split("/")[0].split(".")[0]
+                ) in document_operations:
                     document_operation = document_operations[document_uuid]
                 else:
-                    document_operations[file.uuid] = DocumentSyncProgress(file.uuid, progress)
+                    document_operations[file.uuid] = DocumentSyncProgress(
+                        file.uuid, progress
+                    )
                     document_operation = document_operations[file.uuid]
 
-                if file.uuid.endswith('.content') or file.uuid.endswith('.metadata'):
+                if file.uuid.endswith(".content") or file.uuid.endswith(".metadata"):
                     file.save_to_cache(self, content_datas[file.uuid])
 
                 # This is where you use run_in_executor to call your async function in a separate thread
-                future = loop.run_in_executor(executor, put_file, self, file, content_datas[file.uuid],
-                                              document_operation)
+                future = loop.run_in_executor(
+                    executor,
+                    put_file,
+                    self,
+                    file,
+                    content_datas[file.uuid],
+                    document_operation,
+                )
                 futures.append(future)
             executor.shutdown(wait=True)
 
         # Wait for operation to finish
         while not all(operation.finished for operation in document_operations.values()):
-            time.sleep(.1)
+            time.sleep(0.1)
 
         # Update the root
         progress.stage = STAGE_UPDATE_ROOT
         try:
             update_root(self, new_root)
         except RootUploadFailure:
-            self.log("Sync root failed, this is fine if you decided to sync on another device / start a secondary sync")
+            self.log(
+                "Sync root failed, this is fine if you decided to sync on another device / start a secondary sync"
+            )
             progress.done = -1
             progress.total = 0
             self._upload_document_contents(documents, progress)
@@ -528,8 +620,11 @@ class API:
         if self.sync_notifiers <= 1:
             self.spread_event(SyncRefresh())
 
-    def _delete_document_contents(self, documents: List[Union[Document, DocumentCollection]],
-                                  progress: FileSyncProgress):
+    def _delete_document_contents(
+        self,
+        documents: List[Union[Document, DocumentCollection]],
+        progress: FileSyncProgress,
+    ):
         # We need to remove the documents from the root and upload the new root
 
         if self.offline_mode:
@@ -543,27 +638,24 @@ class API:
 
         root = self.get_root()  # root info
 
-        files = get_file(self, root['hash'], ROOT_DOC_SCHEMA)
+        files = get_file(self, root["hash"], ROOT_DOC_SCHEMA)
         progress.done += 1  # Got root
 
-        new_root = {
-            "broadcast": True,
-            "generation": root['generation']
-        }
+        new_root = {"broadcast": True, "generation": root["generation"]}
 
         uuids = [document.uuid for document in documents]
 
         new_root_files = [
-            file
-            for file in files.files
-            if file.uuid not in uuids
+            file for file in files.files if file.uuid not in uuids
         ]  # Include all the old data without this data
 
         # Prepare the root file
         progress.stage = STAGE_PREPARE_ROOT
-        root_sync_operation = DocumentSyncProgress('root', progress)
-        root_file_content, root_file = FileList(new_root_files, is_root=True).get_root_file()
-        new_root['hash'] = root_file.hash
+        root_sync_operation = DocumentSyncProgress("root", progress)
+        root_file_content, root_file = FileList(
+            new_root_files, is_root=True
+        ).get_root_file()
+        new_root["hash"] = root_file.hash
 
         put_file(self, root_file, root_file_content, root_sync_operation)
 
@@ -572,7 +664,9 @@ class API:
         try:
             update_root(self, new_root)
         except RootUploadFailure:
-            self.log("Sync root failed, this is fine if you decided to sync on another device / start a secondary sync")
+            self.log(
+                "Sync root failed, this is fine if you decided to sync on another device / start a secondary sync"
+            )
             progress.done = -1
             progress.total = 0
             self._upload_document_contents(documents, progress)
@@ -586,24 +680,26 @@ class API:
             uri = get_document_notifications_uri(self)
             if not uri:
                 return
-            elif uri == 'local.appspot.com':
+            elif uri == "local.appspot.com":
                 uri = self.uri
             else:
                 if not uri.endswith("/"):
                     uri += "/"
-                uri = f'https://{uri}'
+                uri = f"https://{uri}"
             self.document_notifications_uri = uri
 
     def log(self, *args, enable_print=False):
         with self.log_lock:
             if self.debug and enable_print:
                 print(*args)
-            logging.info(' '.join(map(str, args)))
+            logging.info(" ".join(map(str, args)))
 
     def reset_confirm_func(self):
         if self.ask_reset:
-            answer = input("Resetting the root will remove all documents from your account. Are you sure? (y/N): ")[0].lower()
-            if answer != 'y':
+            answer = input(
+                "Resetting the root will remove all documents from your account. Are you sure? (y/N): "
+            )[0].lower()
+            if answer != "y":
                 print("Aborting root reset.")
                 return False
         return True
@@ -613,15 +709,12 @@ class API:
             return
         root = self.get_root()
 
-        new_root = {
-            "broadcast": True,
-            "generation": root.get('generation', 0)
-        }
+        new_root = {"broadcast": True, "generation": root.get("generation", 0)}
 
         root_list = FileList([], is_root=True)
 
         root_file_content, root_file = root_list.get_root_file()
-        new_root['hash'] = root_file.hash
-        put_file(self, root_file, root_file_content, DocumentSyncProgress(''))
+        new_root["hash"] = root_file.hash
+        put_file(self, root_file, root_file_content, DocumentSyncProgress(""))
         update_root(self, new_root)
-        _ = get_file(self, new_root['hash'], ROOT_DOC_SCHEMA)
+        _ = get_file(self, new_root["hash"], ROOT_DOC_SCHEMA)

@@ -3,7 +3,12 @@ from typing import TYPE_CHECKING, Union, List, Tuple
 import json
 from crc32c import crc32c
 from rm_api.notifications.models import APIFatal
-from rm_api.storage.v3 import make_storage_request, get_documents_using_root, check_file_exists, ROOT_DOC_SCHEMA
+from rm_api.storage.v3 import (
+    make_storage_request,
+    get_documents_using_root,
+    check_file_exists,
+    ROOT_DOC_SCHEMA,
+)
 
 if TYPE_CHECKING:
     from rm_api import API
@@ -12,7 +17,7 @@ if TYPE_CHECKING:
 SYNC_ROOT_URL = "{0}sync/v3/root"
 
 
-def get_root(api: 'API'):
+def get_root(api: "API"):
     if api.offline_mode:
         return {"hash": api.last_root}
     return make_storage_request(api, "GET", SYNC_ROOT_URL) or {}
@@ -25,12 +30,12 @@ class RootUploadFailure(Exception):
         super().__init__("Failed to update root")
 
 
-def update_root(api: 'API', root: dict):
-    data = json.dumps(root, indent=4).encode('utf-8')
-    checksum_bs4 = base64.b64encode(crc32c(data).to_bytes(4, 'big')).decode('utf-8')
+def update_root(api: "API", root: dict):
+    data = json.dumps(root, indent=4).encode("utf-8")
+    checksum_bs4 = base64.b64encode(crc32c(data).to_bytes(4, "big")).decode("utf-8")
     api.file_list.clear()
     api.file_list_fetched = False
-    exists = check_file_exists(api, root['hash'], ROOT_DOC_SCHEMA, use_cache=False)
+    exists = check_file_exists(api, root["hash"], ROOT_DOC_SCHEMA, use_cache=False)
     if not exists and not api.ignore_error_protection:
         api.spread_event(APIFatal())
         raise Exception("The root file attempted to be set was not on the server")
@@ -39,9 +44,9 @@ def update_root(api: 'API', root: dict):
         data=data,
         headers={
             **api.session.headers,
-            'rm-filename': 'roothash',
-            'Content-Type': 'application/json',
-            'x-goog-hash': f'crc32c={checksum_bs4}',
+            "rm-filename": "roothash",
+            "Content-Type": "application/json",
+            "x-goog-hash": f"crc32c={checksum_bs4}",
         },
     )
 
@@ -52,7 +57,9 @@ def update_root(api: 'API', root: dict):
     return True
 
 
-def get_documents_old_sync(api: 'API', progress, priority_file_uuids: List[str] = None):
-    root = get_root(api).get('hash', 'miss')
+def get_documents_old_sync(api: "API", progress, priority_file_uuids: List[str] = None):
+    root = get_root(api).get("hash", "miss")
     api.last_root = root
-    return get_documents_using_root(api, progress, root, priority_file_uuids=priority_file_uuids)
+    return get_documents_using_root(
+        api, progress, root, priority_file_uuids=priority_file_uuids
+    )

@@ -18,15 +18,16 @@ class Base(DeclarativeBase):
 
 # A simple table definition for SQLAlchemy
 
+
 class FileIndex(Base):
-    __tablename__ = 'file_index'
+    __tablename__ = "file_index"
     fhash = sa.Column(sa.String, primary_key=True)
     size = sa.Column(sa.Integer)
     bytes = sa.Column(sa.LargeBinary)
 
 
 class DBObjectIndexer(FileObjectIndexer):
-    def __init__(self, api: 'API'):
+    def __init__(self, api: "API"):
         super().__init__(api)
         self.file_cache = bytearray()
         self.file_cache_index: Dict[str, Tuple[int, int]] = {}
@@ -43,7 +44,9 @@ class DBObjectIndexer(FileObjectIndexer):
 
     def hash_exists(self, fhash: str) -> bool:
         with self.Session() as session:
-            result = session.execute(sa.select(FileIndex).where(FileIndex.fhash == fhash))
+            result = session.execute(
+                sa.select(FileIndex).where(FileIndex.fhash == fhash)
+            )
             return result.first() is not None
 
     def write_bytes(self, fhash: str, data: bytes) -> None:
@@ -61,7 +64,7 @@ class DBObjectIndexer(FileObjectIndexer):
             session.commit()
 
     def write_string(self, fhash: str, data: str) -> None:
-        self.write_bytes(fhash, data.encode('utf-8'))
+        self.write_bytes(fhash, data.encode("utf-8"))
 
     def read_bytes(self, fhash: str) -> bytes:
         self.register_read(fhash)
@@ -70,12 +73,14 @@ class DBObjectIndexer(FileObjectIndexer):
                 sa.select(FileIndex.bytes).where(FileIndex.fhash == fhash)
             ).first()
             if row is None:
-                raise FileNotFoundError(f"File with hash {fhash} not found in database.")
+                raise FileNotFoundError(
+                    f"File with hash {fhash} not found in database."
+                )
             data = row[0]
         return data
 
     def read_string(self, fhash: str) -> str:
-        return self.read_bytes(fhash).decode('utf-8')
+        return self.read_bytes(fhash).decode("utf-8")
 
     def get_size(self, fhash: str) -> int:
         with self.Session() as session:
@@ -84,19 +89,21 @@ class DBObjectIndexer(FileObjectIndexer):
             )
             row = result.first()
             if row is None:
-                raise FileNotFoundError(f"File with hash {fhash} not found in database.")
+                raise FileNotFoundError(
+                    f"File with hash {fhash} not found in database."
+                )
             return row[0]
 
     def erase(self, fhash: str) -> None:
         with self.Session() as session:
-            session.execute(
-                sa.delete(FileIndex).where(FileIndex.fhash == fhash)
-            )
+            session.execute(sa.delete(FileIndex).where(FileIndex.fhash == fhash))
             session.commit()
 
     def init_db(self):
-        engine = sa.create_engine(f"sqlite:///{self.api.sync_file_path}/sync.db",
-                                  connect_args={"check_same_thread": False})
+        engine = sa.create_engine(
+            f"sqlite:///{self.api.sync_file_path}/sync.db",
+            connect_args={"check_same_thread": False},
+        )
         with engine.begin() as conn:
             conn.exec_driver_sql("PRAGMA journal_mode=WAL")
 

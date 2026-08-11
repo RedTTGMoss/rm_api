@@ -10,7 +10,7 @@ from rm_api import API
 from rm_api.storage.v3 import poll_file, check_file_exists
 
 print(rm_api.__file__)
-host = 'https://rmcloud.redttg.com'
+host = os.environ.get("RM_API_HOST", None)
 api = API(uri=host, discovery_uri=host, ask_reset=True)
 api.debug = True
 

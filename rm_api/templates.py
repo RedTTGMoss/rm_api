@@ -1,1 +1,1 @@
-BLANK_TEMPLATE = 'Blank'
+BLANK_TEMPLATE = "Blank"

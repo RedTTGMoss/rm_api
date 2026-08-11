@@ -12,16 +12,16 @@ if TYPE_CHECKING:
     from rm_api import API, FileSyncProgress, DocumentSyncProgress
 
 
-def get_document_storage_uri(api: 'API'):
+def get_document_storage_uri(api: "API"):
     # Remarkable no longer uses this, but custom clouds might still need it.
     response = api.session.get(DOCUMENT_STORAGE_URL.format(api.discovery_uri))
     if not response.ok:
         api.use_new_sync = True
         return None
     host = response.json().get("Host")
-    secure = 'https'
-    if host == 'local.appspot.com':
-        secure, root_host = api.uri.split('://')
+    secure = "https"
+    if host == "local.appspot.com":
+        secure, root_host = api.uri.split("://")
         root_host = root_host.split("/")[0]
     else:
         root_host = host
@@ -32,13 +32,13 @@ def get_document_storage_uri(api: 'API'):
     return host
 
 
-def get_document_notifications_uri(api: 'API'):
+def get_document_notifications_uri(api: "API"):
     response = api.session.get(DOCUMENT_NOTIFICATIONS_URL.format(api.discovery_uri))
     if not response.ok:
         api.use_new_sync = True
         return None
     host = response.json().get("Host")
-    if host == 'local.appspot.com':  # rM Fake Cloud by DDVK
+    if host == "local.appspot.com":  # rM Fake Cloud by DDVK
         host = api.uri.split("://")[1].split("/")[0]
     return host
 
@@ -54,7 +54,7 @@ class FileHandle:
 
     def open(self):
         if not self.file_handle:
-            self.file_handle = open(self.file_path, 'rb')
+            self.file_handle = open(self.file_path, "rb")
 
     def read(self, size=None):
         self.open()
@@ -117,7 +117,12 @@ class FileHandle:
 
 
 class ProgressFileAdapter(IOBase):
-    def __init__(self, document_sync: 'DocumentSyncProgress', file_sync: 'FileSyncProgress', data: FileHandle):
+    def __init__(
+        self,
+        document_sync: "DocumentSyncProgress",
+        file_sync: "FileSyncProgress",
+        data: FileHandle,
+    ):
         self.document_sync = document_sync
         self.file_sync = file_sync
         self.data = data
@@ -132,7 +137,7 @@ class ProgressFileAdapter(IOBase):
         if isinstance(self.data, FileHandle):
             chunk = self.data.read(size)
         elif isinstance(self.data, bytes):
-            chunk = self.data[index:index + size]
+            chunk = self.data[index : index + size]
         self.file_sync.done += len(chunk)
         self.document_sync.done += len(chunk)
         if self.file_sync.finished and isinstance(self.data, FileHandle):

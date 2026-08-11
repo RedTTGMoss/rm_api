@@ -2,6 +2,7 @@
 This module contains the models for the notifications.
 Since these notifications are pretty mediocre, don't let the length of this file fool you.
 """
+
 from io import BytesIO, TextIOWrapper
 from typing import Union, TYPE_CHECKING, Iterator, Any
 
@@ -28,11 +29,12 @@ class SyncCompleted(Notification):
     """
 
     def __init__(self, message: dict):
-        self.source_device_id = message['attributes'].get('sourceDeviceID')
+        self.source_device_id = message["attributes"].get("sourceDeviceID")
 
 
 class NewDocuments(Notification):
     """This event is issued when potential API.documents / API.document_collections changes occurred"""
+
     ...
 
 
@@ -41,6 +43,7 @@ class APIFatal(Notification):
     This signals the code should stop executing commands to the api instantly to prevent damage.
     It is recommended to follow this event as if something went wrong, continuing might make it become worse!
     """
+
     ...
 
 
@@ -75,7 +78,9 @@ class FileSyncProgress(SyncProgressBase):
 class DocumentSyncProgress(SyncProgressBase):
     """This is a sync progress event meant for keeping track of a individual document sync"""
 
-    def __init__(self, document_uuid: str, file_sync_operation: FileSyncProgress = None):
+    def __init__(
+        self, document_uuid: str, file_sync_operation: FileSyncProgress = None
+    ):
         self.document_uuid = document_uuid
         self.file_sync_operation = file_sync_operation
         self.total_tasks = 0
@@ -98,13 +103,14 @@ class DocumentSyncProgress(SyncProgressBase):
         if self.file_sync_operation:
             self.file_sync_operation.done += 1
 
+
 class DocumentDownloadProgress(SyncProgressBase):
     """
     A sync progress event that automatically relays the download progress of a document.
     """
 
     # noinspection PyMissingConstructor
-    def __init__(self, document: 'Document'):
+    def __init__(self, document: "Document"):
         self.document = document
 
     @property
@@ -123,14 +129,19 @@ class DocumentDownloadProgress(SyncProgressBase):
     def finished(self):
         return not self.document.downloading
 
+
 class DownloadOperation(SyncProgressBase):
     raw_read: BytesIO
     text_read: TextIOWrapper
     raw_read_iter: Iterator
     first_chunk: bytes
 
-    def __init__(self, ref: Union['Document', 'DocumentCollection'], stage: int = UNKNOWN_DOWNLOAD_OPERATION,
-                 update_ref: Any = None):
+    def __init__(
+        self,
+        ref: Union["Document", "DocumentCollection"],
+        stage: int = UNKNOWN_DOWNLOAD_OPERATION,
+        update_ref: Any = None,
+    ):
         super().__init__()
         self.canceled = False
         self.cancel_reason = None
@@ -148,7 +159,7 @@ class DownloadOperation(SyncProgressBase):
 
     def use_response(self, response: Response, head: bool = False):
         # Only grab the total size if it's a head request.
-        self.total = int(response.headers.get('content-length'))
+        self.total = int(response.headers.get("content-length"))
         self.done = 0
         if head:
             return
@@ -183,8 +194,7 @@ class DownloadOperation(SyncProgressBase):
         self.raw_read.flush()
         return self.raw_read.getvalue()
 
-    class DownloadCancelException(Exception):
-        ...
+    class DownloadCancelException(Exception): ...
 
     class DownloadOperationEvent(Notification):
         def __init__(self, operation):
@@ -194,17 +204,13 @@ class DownloadOperation(SyncProgressBase):
         def __dict__(self):
             return self.operation.__dict__
 
-    class DownloadCancelEvent(DownloadOperationEvent):
-        ...
+    class DownloadCancelEvent(DownloadOperationEvent): ...
 
-    class DownloadPollEvent(DownloadOperationEvent):
-        ...
+    class DownloadPollEvent(DownloadOperationEvent): ...
 
-    class DownloadBeginEvent(DownloadOperationEvent):
-        ...
+    class DownloadBeginEvent(DownloadOperationEvent): ...
 
-    class DownloadFinishEvent(DownloadOperationEvent):
-        ...
+    class DownloadFinishEvent(DownloadOperationEvent): ...
 
     @property
     def cancel_event(self):
@@ -225,11 +231,11 @@ class DownloadOperation(SyncProgressBase):
     @property
     def __dict__(self):
         return {
-            'ref': self.ref,
-            'stage': self.stage,
-            'done': self.done,
-            'total': self.total,
-            'finished': self.finished,
-            'canceled': self.canceled,
-            'cancel_reason': self.cancel_reason
+            "ref": self.ref,
+            "stage": self.stage,
+            "done": self.done,
+            "total": self.total,
+            "finished": self.finished,
+            "canceled": self.canceled,
+            "cancel_reason": self.cancel_reason,
         }

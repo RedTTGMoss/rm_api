@@ -17,10 +17,12 @@ class FailedToRefreshToken(Exception):
 class FailedToGetToken(Exception):
     pass
 
+
 class MissingTabletLink(Exception):
     pass
 
-def get_token(api: 'API', code: str = None, remarkable: bool = False):
+
+def get_token(api: "API", code: str = None, remarkable: bool = False):
     if not api.require_token and not code:
         return None
     if not code:
@@ -31,15 +33,13 @@ def get_token(api: 'API', code: str = None, remarkable: bool = False):
             "code": code,
             "deviceDesc": "remarkable" if remarkable else "desktop-windows",
             "deviceID": uuid4().hex,
-            "secret": ""
+            "secret": "",
         },
-        headers={
-            "Authorization": f"Bearer "
-        }
+        headers={"Authorization": f"Bearer "},
     )
     if response.status_code != 200:
         if api.require_token:
-            print(f'Got status code {response.status_code}')
+            print(f"Got status code {response.status_code}")
             return get_token(api)
         else:
             raise FailedToGetToken("Could not get token")
@@ -50,7 +50,7 @@ def get_token(api: 'API', code: str = None, remarkable: bool = False):
     return response.text
 
 
-def refresh_token(api: 'API', token: str, remarkable: bool = False):
+def refresh_token(api: "API", token: str, remarkable: bool = False):
     if not token:
         if api.require_token:
             return refresh_token(api, get_token(api, remarkable=remarkable))
@@ -63,8 +63,10 @@ def refresh_token(api: 'API', token: str, remarkable: bool = False):
     except (TimeoutError, requests.exceptions.ConnectionError):
         api.offline_mode = True
         return None
-    if b'rM device' in response.content and not remarkable:
-        raise MissingTabletLink("You need to link your tablet first or use remarkable=True")
+    if b"rM device" in response.content and not remarkable:
+        raise MissingTabletLink(
+            "You need to link your tablet first or use remarkable=True"
+        )
     if response.status_code != 200:
         if api.require_token:
             return refresh_token(api, get_token(api, remarkable=remarkable), remarkable)

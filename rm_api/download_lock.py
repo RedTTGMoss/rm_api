@@ -16,18 +16,25 @@ if TYPE_CHECKING:
     from rm_api.notifications.models import DownloadOperation
 
 MAX_LOCK_TOTAL = 100000000  # 100MB
-LOCK_MIN_PASSTHROUGH = 1000000  # 1MB, minimum size to pass through the lock without waiting
+LOCK_MIN_PASSTHROUGH = (
+    1000000  # 1MB, minimum size to pass through the lock without waiting
+)
 MAX_TASKS = 20  # Allowing more tasks may lead to performance issues, so we limit it
 
+
 class DownloadLockRequest:
-    def __init__(self, lock: 'DownloadLock', download_operation: 'DownloadOperation'):
+    def __init__(self, lock: "DownloadLock", download_operation: "DownloadOperation"):
         self.lock = lock
         self.operation = download_operation
         self.total = download_operation.total
 
     def __enter__(self):
         with self.lock.condition:
-            while self.lock.total >= MAX_LOCK_TOTAL and self.total < LOCK_MIN_PASSTHROUGH and self.lock.tasks > MAX_TASKS:
+            while (
+                self.lock.total >= MAX_LOCK_TOTAL
+                and self.total < LOCK_MIN_PASSTHROUGH
+                and self.lock.tasks > MAX_TASKS
+            ):
                 self.lock.condition.wait()
                 if self.lock.stopped or self.operation.canceled:
                     self.lock.tasks -= 1
@@ -53,7 +60,7 @@ class DownloadLockRequest:
 
 
 class DownloadLock:
-    def __init__(self, api: 'API'):
+    def __init__(self, api: "API"):
         self.api = api
         self.total = 0
         self.tasks = 0
@@ -66,5 +73,5 @@ class DownloadLock:
             self.stopped = True
             self.condition.notify_all()
 
-    def __call__(self, download_operation: 'DownloadOperation') -> DownloadLockRequest:
+    def __call__(self, download_operation: "DownloadOperation") -> DownloadLockRequest:
         return DownloadLockRequest(self, download_operation)

@@ -5,24 +5,24 @@ RM_SCREEN_CENTER = tuple(v // 2 for v in RM_SCREEN_SIZE)
 
 
 class ZoomModes(Enum):
-    BestFit = 'bestFit'  # Default
-    CustomFit = 'customFit'
-    FitToWidth = 'fitToWidth'
-    FitToHeight = 'fitToHeight'
+    BestFit = "bestFit"  # Default
+    CustomFit = "customFit"
+    FitToWidth = "fitToWidth"
+    FitToHeight = "fitToHeight"
 
 
 class FileTypes(Enum):
-    PDF = 'pdf'
-    EPUB = 'epub'
-    Notebook = 'notebook'
+    PDF = "pdf"
+    EPUB = "epub"
+    Notebook = "notebook"
 
 
 class Orientations(Enum):
-    Portrait = 'portrait'
-    Landscape = 'landscape'
+    Portrait = "portrait"
+    Landscape = "landscape"
 
 
 class DocumentTypes(Enum):
-    Document = 'DocumentType'
-    Collection = 'CollectionType'
-    Template = 'TemplateType'
+    Document = "DocumentType"
+    Collection = "CollectionType"
+    Template = "TemplateType"

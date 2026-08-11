@@ -10,7 +10,13 @@ from colorama import Fore
 
 from rm_api.notifications.models import DownloadOperation
 from rm_api.storage.common import FileHandle
-from rm_api.sync_stages import UNKNOWN_DOWNLOAD_OPERATION, FETCH_FILE, DOWNLOAD_CONTENT, GET_CONTENTS, LOAD_CONTENT
+from rm_api.sync_stages import (
+    UNKNOWN_DOWNLOAD_OPERATION,
+    FETCH_FILE,
+    DOWNLOAD_CONTENT,
+    GET_CONTENTS,
+    LOAD_CONTENT,
+)
 
 if TYPE_CHECKING:
     from . import API, File
@@ -43,42 +49,46 @@ def batched(iterable, batch_size):
 
 def download_operation_wrapper(fn):
     @wraps(fn)
-    def wrapped(api: 'API', *args, **kwargs):
-        ref = kwargs.get('ref')  # Download operation reference, for example document or collection
-        stage = kwargs.get('stage')
-        update = kwargs.get('update')
-        auto_finish = kwargs.get('auto_finish', True)
+    def wrapped(api: "API", *args, **kwargs):
+        ref = kwargs.get(
+            "ref"
+        )  # Download operation reference, for example document or collection
+        stage = kwargs.get("stage")
+        update = kwargs.get("update")
+        auto_finish = kwargs.get("auto_finish", True)
         if ref is not None:
-            del kwargs['ref']
-        if kwargs.get('stage') is not None:
-            del kwargs['stage']
-        if kwargs.get('auto_finish') is not None:
-            del kwargs['auto_finish']
+            del kwargs["ref"]
+        if kwargs.get("stage") is not None:
+            del kwargs["stage"]
+        if kwargs.get("auto_finish") is not None:
+            del kwargs["auto_finish"]
         if update is not None:
-            del kwargs['update']
-        operation = kwargs.get('operation') or DownloadOperation(ref)
+            del kwargs["update"]
+        operation = kwargs.get("operation") or DownloadOperation(ref)
         operation.stage = stage or operation.stage
         operation.update_ref = update or operation.update_ref
         api.add_download_operation(operation)
         if update:
-            getattr(update, 'add_download_operation')(operation)
-        kwargs['operation'] = operation
+            getattr(update, "add_download_operation")(operation)
+        kwargs["operation"] = operation
         try:
             if operation.canceled:
                 raise operation.DownloadCancelException()
             data = fn(api, *args, **kwargs)
         except DownloadOperation.DownloadCancelException:
             if update:
-                getattr(update, 'remove_download_operation')(operation)
+                getattr(update, "remove_download_operation")(operation)
             raise
         except:
             api.cancel_download_operation(operation)
             if update:
-                getattr(update, 'remove_download_operation')(operation)
+                getattr(update, "remove_download_operation")(operation)
             raise
-        if auto_finish and (operation.done >= operation.total or operation.stage == FETCH_FILE):
+        if auto_finish and (
+            operation.done >= operation.total or operation.stage == FETCH_FILE
+        ):
             if update:
-                getattr(update, 'remove_download_operation')(operation)
+                getattr(update, "remove_download_operation")(operation)
             api.finish_download_operation(operation)
         return data
 
@@ -95,8 +105,8 @@ def download_operation_wrapper_with_stage(stage: int):
 
         @wraps(wrapped_fn)
         def wrapped(*args, **kwargs):
-            if 'stage' not in kwargs:
-                kwargs['stage'] = stage
+            if "stage" not in kwargs:
+                kwargs["stage"] = stage
             return wrapped_fn(*args, **kwargs)
 
         return wrapped
@@ -116,17 +126,21 @@ class DownloadOperationsSupport:
 
     @property
     def online_download_operations(self):
-        return [op for op in list(self._download_operations) if op.stage in (
-            DOWNLOAD_CONTENT,
-            GET_CONTENTS,
-            LOAD_CONTENT
-        )]
+        return [
+            op
+            for op in list(self._download_operations)
+            if op.stage in (DOWNLOAD_CONTENT, GET_CONTENTS, LOAD_CONTENT)
+        ]
 
     @property
     def downloading(self):
         if len(self._download_operations) == 0:
             return False
-        return any(not op.finished for op in self.online_download_operations if not op.canceled and op.done < op.total)
+        return any(
+            not op.finished
+            for op in self.online_download_operations
+            if not op.canceled and op.done < op.total
+        )
 
     @property
     def download_done(self):
@@ -134,4 +148,6 @@ class DownloadOperationsSupport:
 
     @property
     def download_total(self):
-        return sum(op.total for op in self.online_download_operations if not op.canceled)
+        return sum(
+            op.total for op in self.online_download_operations if not op.canceled
+        )

@@ -10,7 +10,9 @@ from rm_api import API
 class TestAPIEventLoopInit(unittest.TestCase):
 
     def _make_api_without_token_io(self):
-        token_path = os.path.join(tempfile.gettempdir(), "rm_api_missing_token_for_test")
+        token_path = os.path.join(
+            tempfile.gettempdir(), "rm_api_missing_token_for_test"
+        )
         if os.path.exists(token_path):
             os.remove(token_path)
         with patch.object(API, "get_token", return_value=None):
@@ -28,4 +30,3 @@ class TestAPIEventLoopInit(unittest.TestCase):
             self.assertIs(api.loop, running_loop)
 
         asyncio.run(_build_api_inside_running_loop())
-

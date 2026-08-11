@@ -7,7 +7,7 @@ if TYPE_CHECKING:
 
 
 class ObjectIterWriter:
-    def __init__(self, indexer: 'ObjectIndexer', fhash: str):
+    def __init__(self, indexer: "ObjectIndexer", fhash: str):
         self.indexer = indexer
         self.fhash = fhash
         self._data = bytearray()
@@ -15,7 +15,7 @@ class ObjectIterWriter:
     def write(self, data: bytes) -> None:
         self._data.extend(data)
 
-    def __enter__(self) -> 'ObjectIterWriter':
+    def __enter__(self) -> "ObjectIterWriter":
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -25,7 +25,7 @@ class ObjectIterWriter:
 class ObjectIndexer(ABC):
     allow_write = True
 
-    def __init__(self, api: 'API'):
+    def __init__(self, api: "API"):
         self.api = api
         self.writes_count = 0
         self.reads_count = 0
@@ -55,7 +55,7 @@ class ObjectIndexer(ABC):
             f"Object Indexer Stats - "
             f"Written: {self.writes_count}, Read: {self.reads_count} | "
             f"Unique Writes: {len(self.unique_writes)}, Unique Reads: {len(self.unique_reads)}",
-            enable_print=enable_print
+            enable_print=enable_print,
         )
 
     def log_and_reset_stats(self, enable_print: bool = True) -> None:
