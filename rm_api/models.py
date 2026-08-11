@@ -1281,8 +1281,8 @@ class Document(DownloadOperationsSupport):
             for file in self.files:
                 if file.uuid not in self.content_files:
                     continue
-                file = self.get_file(file.hash)
-                with open(file, 'rb') as f:
+                file_path = self.get_file(file.hash)
+                with open(file_path, 'rb') as f:
                     self.content_data[file.uuid] = f.read()
             return
         for file in self.files:
@@ -1556,7 +1556,7 @@ class LocalDocument(Document):
     def __init(self):
         if not getattr(self, 'local_dir', None):
             self.local_dir = None
-        self.check_files_availability()
+        self.files_available = self.check_files_availability()
 
     @classmethod
     def new_notebook(cls, name: str, parent: str = None, document_uuid: str = None,
