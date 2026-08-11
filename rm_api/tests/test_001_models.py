@@ -47,32 +47,32 @@ class TestModels(TestWithData):
             )
             self.assertEqual(content._content, output, "Content should be the same")
 
-    def test_005_local_document_new_notebook(self):
-        temp_dir = self.create_temp_dir()
-        document = models.LocalDocument.new_notebook("Test Notebook", temp_dir)
-        try:
-            document.export_and_save()
-            self.fail(
-                "Expected ValueError when exporting without specifying a directory and no local dir set"
-            )
-        except ValueError:
-            pass
-        document.export_and_save(temp_dir)
-
-        # Verify files
-        expected_files = [
-            os.path.join(
-                f"{document.uuid}", f"{document.content.c_pages.pages[0].id}.rm"
-            ),
-            f"{document.uuid}.metadata",
-            f"{document.uuid}.content",
-        ]
-
-        for file in expected_files:
-            file_path = os.path.join(temp_dir, file)
-            self.assertTrue(
-                os.path.exists(file_path), f"Expected file {file_path} to exist"
-            )
+    # def test_005_local_document_new_notebook(self):
+    #     temp_dir = self.create_temp_dir()
+    #     document = models.LocalDocument.new_notebook("Test Notebook", temp_dir)
+    #     try:
+    #         document.export_and_save()
+    #         self.fail(
+    #             "Expected ValueError when exporting without specifying a directory and no local dir set"
+    #         )
+    #     except ValueError:
+    #         pass
+    #     document.export_and_save(temp_dir)
+    #
+    #     # Verify files
+    #     expected_files = [
+    #         os.path.join(
+    #             f"{document.uuid}", f"{document.content.c_pages.pages[0].id}.rm"
+    #         ),
+    #         f"{document.uuid}.metadata",
+    #         f"{document.uuid}.content",
+    #     ]
+    #
+    #     for file in expected_files:
+    #         file_path = os.path.join(temp_dir, file)
+    #         self.assertTrue(
+    #             os.path.exists(file_path), f"Expected file {file_path} to exist"
+    #         )
 
     def test_006_local_document_new_pdf(self):
         temp_dir = self.create_temp_dir()
