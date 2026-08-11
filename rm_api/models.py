@@ -627,6 +627,7 @@ class Content:
         self.version: int = content.get("formatVersion")
         self.size_in_bytes: int = try_to_load_int(content.get("sizeInBytes"), -1)
         self.tags: List[Tag] = [Tag(tag) for tag in content.get("tags", ())]
+        self.page_tags: List[Tag] = [Tag(tag) for tag in content.get("pageTags", ())]
         self.zoom = Zoom(content)
         self.orientation: str = content.get("orientation", "portrait")
 
@@ -991,9 +992,13 @@ class Tag:
     def __init__(self, tag):
         self.name = tag["name"]
         self.timestamp = tag["timestamp"]
+        self.page_id = tag.get("pageId", None)
 
     def to_rm_json(self):
-        return {"name": self.name, "timestamp": self.timestamp}
+        result = {"name": self.name, "timestamp": self.timestamp}
+        if self.page_id:
+            result["pageId"] = self.page_id
+        return result
 
     def __repr__(self):
         return self.name
