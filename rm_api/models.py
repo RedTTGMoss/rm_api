@@ -1,9 +1,12 @@
 import concurrent.futures
 import json
 import os.path
+import shutil
+import tempfile
 import threading
 import time
 import uuid
+import zipfile
 from concurrent.futures import as_completed
 from concurrent.futures.thread import ThreadPoolExecutor
 from copy import copy, deepcopy
@@ -15,6 +18,7 @@ from itertools import zip_longest
 from pathlib import Path
 from typing import List, TYPE_CHECKING, Generic, T, Union, TypedDict, Dict, Optional, Tuple, Any
 
+import atexit
 from colorama import Fore
 
 from rm_api.defaults import RM_SCREEN_CENTER, RM_SCREEN_SIZE, ZoomModes, Orientations, DocumentTypes
@@ -199,6 +203,22 @@ class FileList:
         else:
             raise cls.__unsupported_version_error(new._version)
         return new
+
+    @classmethod
+    def from_dir(cls, dir: str, is_root: bool = False):
+        if not os.path.exists(dir) or not os.path.isdir(dir):
+            raise ValueError("from_dir expects a directory path")
+        files = []
+        for root, _, filenames in os.walk(dir):
+            for filename in filenames:
+                file = os.path.relpath(os.path.join(root, filename), dir)
+                with open(os.path.join(dir, file), 'rb') as f:
+                    data = f.read()
+                    file_hash = make_hash(data)
+                    files.append(File(file_hash, file, 0, len(data)))
+                    del data
+
+        return cls(files, is_root=is_root)
 
     @property
     def files(self):
@@ -1524,15 +1544,18 @@ class Document(DownloadOperationsSupport):
 
 # noinspection PyMethodOverriding
 class LocalDocument(Document):
-    local_dir: str
+    local_dir: str | bytes | os.PathLike | None
 
-    def __init__(self, content: Content, metadata: Metadata, files: List[File], uuid: str):
+    def __init__(self, content: Content, metadata: Metadata, files: List[File], uuid: str,
+                 local_dir: str | bytes | os.PathLike | None):
         super().__init__(None, content, metadata, files, uuid, None)
         self.local = True
+        self.local_dir = os.fspath(local_dir)
         self.__init()
 
     def __init(self):
-        self.local_dir = None
+        if not getattr(self, 'local_dir', None):
+            self.local_dir = None
         self.check_files_availability()
 
     @classmethod
@@ -1541,7 +1564,7 @@ class LocalDocument(Document):
                      notebook_data: List[Union[bytes, FileHandle]] = [], metadata: Metadata = None,
                      content: Content = None) -> 'LocalDocument':
         new: Document = Document.new_notebook(None, name, parent, document_uuid, page_count, notebook_data, metadata,
-                                             content)
+                                              content)
         new.__class__ = cls
         new: LocalDocument
         new.__init()
@@ -1567,6 +1590,53 @@ class LocalDocument(Document):
         new.__init()
         return new
 
+    @classmethod
+    def load_rmdoc(cls, rmdoc_file: str | bytes | os.PathLike, load_dir: str = None) -> 'LocalDocument':
+        """
+        Load a .rmdoc file and return a LocalDocument instance.
+        :param rmdoc_file: Path to the .rmdoc file or a directory containing the document files.
+        :param load_dir: Directory to load the document files into. Uses tmp if not specified. If the rmdoc is a dir, this is ignored.
+        :return: LocalDocument instance.
+        """
+
+        rmdoc_file = os.fspath(rmdoc_file)
+
+        if os.path.isdir(rmdoc_file):
+            load_dir = rmdoc_file
+        else:
+            if not load_dir:
+                load_dir = tempfile.mkdtemp()
+                atexit.register(lambda: shutil.rmtree(load_dir, ignore_errors=True))
+            with zipfile.ZipFile(rmdoc_file, 'r') as zip_ref:
+                zip_ref.extractall(load_dir)
+        return cls._load_rmdoc_dir(load_dir, ref=rmdoc_file)
+
+    @classmethod
+    def _load_rmdoc_dir(cls, load_dir: str, ref: str = None) -> 'LocalDocument':
+        if not ref:
+            ref = load_dir
+        metadata_file = None
+        for file in os.listdir(load_dir):
+            if file.endswith('.metadata'):
+                metadata_file = os.path.join(load_dir, file)
+                continue
+        if not metadata_file:
+            raise FileNotFoundError(f"No metadata file found in local document {ref}")
+        doc_uuid = os.path.basename(metadata_file).rsplit('.', 1)[0]
+        content_file = os.path.join(load_dir, f'{doc_uuid}.content')
+
+        with open(metadata_file, 'r') as f:
+            metadata_dict = json.load(f)
+        with open(content_file, 'r') as f:
+            content_dict = json.load(f)
+
+        file_content = FileList.from_dir(load_dir)
+
+        metadata = Metadata(metadata_dict, make_hash(metadata_dict))
+        content = Content(content_dict, metadata, make_hash(content_dict))
+        doc = cls(content, metadata, file_content.files, doc_uuid, local_dir=load_dir)
+        return doc
+
     def export_and_save(self, export_dir: str = None):
         if not export_dir:
             self._check_local_dir()
@@ -1584,6 +1654,8 @@ class LocalDocument(Document):
     def _check_local_dir(self):
         if not self.local_dir and self.available:
             raise ValueError("Document is only available in memory, no local directory is set.")
+        elif not self.local_dir:
+            raise ValueError("Document is unavaliable and no local directory is set.")
         elif not os.path.exists(self.local_dir):
             raise FileNotFoundError(f"Local directory {self.local_dir} does not exist.")
 

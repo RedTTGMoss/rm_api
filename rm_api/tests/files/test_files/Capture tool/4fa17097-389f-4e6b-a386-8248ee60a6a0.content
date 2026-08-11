@@ -1,0 +1,92 @@
+{
+    "cPages": {
+        "lastOpened": {
+            "timestamp": "1:1",
+            "value": "91a2393c-cb3a-4984-821a-9bbf05dd0aaa"
+        },
+        "original": {
+            "timestamp": "1:1",
+            "value": -1
+        },
+        "pages": [
+            {
+                "id": "91a2393c-cb3a-4984-821a-9bbf05dd0aaa",
+                "idx": {
+                    "timestamp": "1:2",
+                    "value": "ba"
+                },
+                "template": {
+                    "timestamp": "1:2",
+                    "value": "Blank"
+                }
+            }
+        ],
+        "uuids": [
+            {
+                "first": "f552a505-51e8-5ffa-915c-ef2a4ef64ec4",
+                "second": 1
+            }
+        ]
+    },
+    "coverPageNumber": -1,
+    "customZoomCenterX": 0,
+    "customZoomCenterY": 936,
+    "customZoomOrientation": "portrait",
+    "customZoomPageHeight": 1872,
+    "customZoomPageWidth": 1404,
+    "customZoomScale": 1,
+    "documentMetadata": {
+    },
+    "dummyDocument": false,
+    "extraMetadata": {
+        "LastActiveTool": "primary",
+        "LastBallpointv2Color": "Black",
+        "LastBallpointv2Size": "2",
+        "LastCalligraphyColor": "Black",
+        "LastCalligraphySize": "1",
+        "LastEraserColor": "Black",
+        "LastEraserSize": "2",
+        "LastEraserTool": "Eraser",
+        "LastMarkerv2Color": "Black",
+        "LastMarkerv2Size": "2",
+        "LastPen": "Ballpointv2",
+        "LastPencilv2Color": "Black",
+        "LastPencilv2Size": "2",
+        "LastSelectionToolColor": "Black",
+        "LastSelectionToolSize": "2",
+        "SecondaryHighlighterv2Color": "ArgbCode",
+        "SecondaryHighlighterv2ColorCode": "4294951820",
+        "SecondaryHighlighterv2Size": "1",
+        "SecondaryPen": "Highlighterv2",
+        "SecondaryShadingMarkerColor": "ArgbCode",
+        "SecondaryShadingMarkerColorCode": "1075912220",
+        "SecondaryShadingMarkerSize": "2"
+    },
+    "fileType": "notebook",
+    "fontName": "",
+    "formatVersion": 2,
+    "lastOpenedPage": 0,
+    "lineHeight": 100,
+    "margins": 180,
+    "orientation": "portrait",
+    "pageCount": 1,
+    "pageTags": [
+    ],
+    "sizeInBytes": "208923",
+    "tags": [
+    ],
+    "textAlignment": "justify",
+    "textScale": 1,
+    "transform": {
+        "m11": 1,
+        "m12": 0,
+        "m13": 0,
+        "m21": 0,
+        "m22": 1,
+        "m23": 0,
+        "m31": 0,
+        "m32": 0,
+        "m33": 1
+    },
+    "zoomMode": "bestFit"
+}

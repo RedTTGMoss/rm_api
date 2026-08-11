@@ -1,7 +1,7 @@
 import os
 
 from rm_api import models, make_hash
-from .common import TestWithData, test_pdf_file, test_epub_file
+from .common import TestWithData, test_pdf_file, test_epub_file, test_files_folder
 from ..defaults import ZoomModes
 
 
@@ -58,6 +58,7 @@ class TestModels(TestWithData):
             f"{document.uuid}.metadata",
             f"{document.uuid}.content",
         ]
+
         for file in expected_files:
             file_path = os.path.join(temp_dir, file)
             self.assertTrue(os.path.exists(file_path), f"Expected file {file_path} to exist")
@@ -78,8 +79,6 @@ class TestModels(TestWithData):
             f"{document.uuid}.metadata",
             f"{document.uuid}.content",
         ]
-        for file in os.walk(temp_dir):
-            print(file)
 
         for file in expected_files:
             file_path = os.path.join(temp_dir, file)
@@ -101,9 +100,16 @@ class TestModels(TestWithData):
             f"{document.uuid}.metadata",
             f"{document.uuid}.content",
         ]
-        for file in os.walk(temp_dir):
-            print(file)
 
         for file in expected_files:
             file_path = os.path.join(temp_dir, file)
             self.assertTrue(os.path.exists(file_path), f"Expected file {file_path} to exist")
+
+    def test_008_local_document_load_files(self):
+        for file in os.listdir(test_files_folder):
+            file_path = os.path.join(test_files_folder, file)
+            doc = models.LocalDocument.load_rmdoc(file_path)
+            self.assertIsInstance(doc, models.LocalDocument, "Loaded document should be an instance of LocalDocument")
+            for file in doc.files:
+                file_path = doc.get_file(file.hash)
+                self.assertTrue(os.path.exists(file_path), f"Expected file {file_path} to exist")

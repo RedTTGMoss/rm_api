@@ -10,6 +10,7 @@ files_folder = os.path.join(script_folder, 'files')
 content_folder = os.path.join(files_folder, 'content')
 metadata_folder = os.path.join(files_folder, 'metadata')
 extra_folder = os.path.join(files_folder, 'extra')
+test_files_folder = os.path.join(files_folder, 'test_files')
 test_pdf_file = os.path.join(extra_folder, 'test.pdf')
 test_epub_file = os.path.join(extra_folder, 'test.epub')
 
